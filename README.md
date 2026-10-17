@@ -435,6 +435,11 @@ Anything else follows the viewer's own light/dark preference. It rides both the 
 `data-rc-color-scheme`, so the panel paints in the right scheme from the first paint. Set it when your
 app is always one scheme (e.g. an always-light admin); omit it to follow the viewer.
 
+`credentials:` (optional, env name → string, ≤ 8 entries, ≤ 8 KiB, no `RC_` keys) rides the token
+to every run of the conversation as plain env: mint a **user-scoped** token for your own API so the
+agent can act as exactly this user. Sealed at session open, never refreshed; give it a lifetime
+that covers a conversation (hub decision 20). Mint-time violations raise `CREDENTIALS_INVALID`.
+
 Outside Rails (or to mint the token yourself, e.g. for a JSON endpoint that refreshes an expiring
 one):
 

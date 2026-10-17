@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.16.0
+
+- **`Chat.token(credentials:)`** mints the optional per-session `credentials` claim (hub decision 20):
+  env name → string, keys sorted, validated like the host (UPPER_SNAKE, no `RC_`, ≤ 8 entries, ≤ 8 KiB),
+  else `CREDENTIALS_INVALID`. Mints `jwt_vector_credentials_replypen.json` byte-for-byte.
+
 ## 0.15.0
 
 - **Rebrand to ReplyPen:** gem `replypen-embassy`, namespace `ReplyPen::Embassy`, code under

@@ -495,6 +495,13 @@ RSpec.describe "hub contract conformance" do
     expect(token).to eq(jwt.fetch("token"))
   end
 
+  it "mints jwt_vector_credentials_replypen.json to the exact token (credentials keys sorted)" do
+    jwt = JSON.parse(fixture("chat/jwt_vector_credentials_replypen.json"))
+    credentials = JSON.parse(jwt.fetch("claims_json")).fetch("credentials").to_a.reverse.to_h
+    token = mint_vector(jwt) { |**options| ReplyPen::Embassy::Chat.token(**options, credentials: credentials) }
+    expect(token).to eq(jwt.fetch("token"))
+  end
+
   # widget_tag.html embeds a legacy-aud token as opaque bytes; everything around it is contract.
   it "replays the chat widget tag byte-for-byte around the minted token" do
     legacy = JSON.parse(fixture("chat/jwt_vector.json")).fetch("token")

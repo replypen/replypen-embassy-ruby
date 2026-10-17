@@ -27,6 +27,10 @@ module ReplyPen
       # The host also allows 60s clock skew.
       DEFAULT_TTL = 7200
       MAX_TTL = 24 * 60 * 60
+      CREDENTIAL_KEY = /\A[A-Z][A-Z0-9_]{0,63}\z/
+      MAX_CREDENTIALS = 8
+      MAX_CREDENTIALS_BYTES = 8 * 1024
+      CREDENTIALS_HINT = "Mint credentials as at most 8 string values under UPPER_SNAKE keys (no RC_ prefix), 8 KiB total."
       # One literal, owned by Config (REPLYPEN_CHAT_BASE_URL's default); kept reachable here
       # because the widget tag reads it directly.
       DEFAULT_BASE_URL = Config::DEFAULT_CHAT_BASE_URL
@@ -62,7 +66,7 @@ module ReplyPen
       # @return [String] compact HS256 JWT
       # @raise [ArgumentError] unconfigured chat, or a blank/malformed argument
       def token(external_id:, origin:, kind:, tenant: nil, locale: nil, color_scheme: nil, ttl: DEFAULT_TTL,
-        asserted_by: nil, assurance: DEFAULT_ASSURANCE, config: Embassy.config, now: Time.now)
+        asserted_by: nil, assurance: DEFAULT_ASSURANCE, credentials: nil, config: Embassy.config, now: Time.now)
         secret = presence(config.chat_secret) || raise(Error.public(
           "CHAT_SECRET_REQUIRED", "Set REPLYPEN_CHAT_SECRET to the project's chat signing secret."
         ))
@@ -107,8 +111,27 @@ module ReplyPen
         claims["tenant"] = tenant.to_s unless Util.blank?(tenant)
         claims["locale"] = locale.to_s unless Util.blank?(locale)
         claims["color_scheme"] = color_scheme.to_s unless Util.blank?(color_scheme)
+        credentials = credentials_claim(credentials)
+        claims["credentials"] = credentials if credentials
 
         encode(claims, secret)
+      end
+
+      # Hub decision 20: env name → string the host seals on the session and injects into every run, so
+      # the agent can call the customer's own API as exactly this user. Same rules as the host checks.
+      # Keys sorted: the golden vector (and any map-marshaling port) signs them in that order.
+      def credentials_claim(credentials)
+        return nil if credentials.nil? || (credentials.respond_to?(:empty?) && credentials.empty?)
+
+        unless credentials.is_a?(Hash) && credentials.size <= MAX_CREDENTIALS
+          raise Error.public("CREDENTIALS_INVALID", CREDENTIALS_HINT)
+        end
+
+        claim = credentials.to_h { |key, value| [key.to_s, value] }.sort.to_h
+        valid = claim.all? { |key, value| key.match?(CREDENTIAL_KEY) && !key.start_with?("RC_") && value.is_a?(String) }
+        raise Error.public("CREDENTIALS_INVALID", CREDENTIALS_HINT) unless valid && JSON.generate(claim).bytesize <= MAX_CREDENTIALS_BYTES
+
+        claim
       end
 
       # The host's required `aud` for a project's embed token.

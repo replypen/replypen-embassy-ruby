@@ -38,6 +38,22 @@ RSpec.describe ReplyPen::Embassy::Chat do
       expect { Wire.decode_jwt(mint, secret: Wire::SECRET) }.to raise_error(/signature/)
     end
 
+    it "carries credentials only when given, keys sorted" do
+      expect(Wire.decode_jwt(mint).last).not_to have_key("credentials")
+      expect(Wire.decode_jwt(mint(credentials: {})).last).not_to have_key("credentials")
+
+      _, claims = Wire.decode_jwt(mint(credentials: { ACME_TOKEN: "t", ACME_BASE: "https://api.acme.example" }))
+      expect(claims.fetch("credentials").keys).to eq(%w[ACME_BASE ACME_TOKEN])
+    end
+
+    it "refuses credentials the host would refuse" do
+      [{ "RC_TOKEN" => "x" }, { "lower" => "x" }, { "ACME" => 1 }, (1..9).to_h { |i| ["K#{i}", "v"] },
+       { "BIG" => "x" * 9000 }, "ACME=x"].each do |credentials|
+        expect { mint(credentials: credentials) }
+          .to raise_error(ReplyPen::Embassy::Error) { |error| expect(error.code).to eq("CREDENTIALS_INVALID") }
+      end
+    end
+
     it "omits tenant entirely when none is given" do
       _, claims = Wire.decode_jwt(mint)
       expect(claims).not_to have_key("tenant")

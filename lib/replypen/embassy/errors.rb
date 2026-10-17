@@ -1,11 +1,11 @@
 # frozen_string_literal: true
 
-module RootCause
+module ReplyPen
   module Embassy
     # Stable customer-facing failure. Action/result subclasses also carry the
     # closed wire class and HTTP status used by signed refusals.
     class Error < ArgumentError
-      DOCS_BASE_URL = "https://github.com/rootcause-org/rootcause-embassy/blob/main/docs/integrator/errors.md#"
+      DOCS_BASE_URL = "https://github.com/replypen/replypen-embassy/blob/main/docs/integrator/errors.md#"
 
       class << self
         attr_reader :status, :wire_class, :diagnostic_code, :diagnostic_hint
@@ -52,7 +52,7 @@ module RootCause
     # Signature missing or did not verify (constant-time) against the raw body.
     class SignatureError < Error
       diagnostic status: 401, wire_class: "bad_signature", code: "BAD_SIGNATURE",
-        hint: "Verify ROOTCAUSE_ACTION_SECRET and sign the exact transmitted bytes."
+        hint: "Verify REPLYPEN_ACTION_SECRET and sign the exact transmitted bytes."
     end
 
     # Replay guard tripped: `issued_at` outside the window or `nonce` already seen.
@@ -71,7 +71,7 @@ module RootCause
     # failure, or — the load-bearing one — sha256(body) != script_digest.
     class ResolveError < Error
       diagnostic status: 502, wire_class: "resolve_failed", code: "RESOLVE_FAILED",
-        hint: "Check ROOTCAUSE_FETCH_URL and run a dry run; never bypass signature or digest verification."
+        hint: "Check REPLYPEN_FETCH_URL and run a dry run; never bypass signature or digest verification."
     end
 
     # The result route could not dispatch: `result_handler` is unconfigured or its
@@ -93,7 +93,7 @@ module RootCause
 
     class ActionPlaneDisabled < Error
       diagnostic status: 503, wire_class: "action_plane_disabled", code: "ACTION_PLANE_DISABLED",
-        hint: "Configure ROOTCAUSE_ACTION_SECRET and ROOTCAUSE_FETCH_URL before using actions or analysis."
+        hint: "Configure REPLYPEN_ACTION_SECRET and REPLYPEN_FETCH_URL before using actions or analysis."
     end
 
     # Raised to the CALLER of `start_analysis`, never turned into a signed reply:

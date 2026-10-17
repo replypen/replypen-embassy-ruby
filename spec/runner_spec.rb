@@ -2,7 +2,7 @@
 
 # End-to-end through the framework-agnostic core: verify → replay → validate →
 # resolve → run → sign. The host side (signing + script fetch) is stubbed via Wire.
-RSpec.describe RootCause::Embassy::Runner do
+RSpec.describe ReplyPen::Embassy::Runner do
   let(:config) { Wire.config }
   let(:runner) { described_class.new(config) }
 
@@ -26,7 +26,7 @@ RSpec.describe RootCause::Embassy::Runner do
     reply = handle(inv)
 
     expect(reply.status).to eq(200)
-    expect(RootCause::Embassy::Signature.valid?(reply.signature, reply.body, secret: Wire::SECRET)).to be(true)
+    expect(ReplyPen::Embassy::Signature.valid?(reply.signature, reply.body, secret: Wire::SECRET)).to be(true)
     payload = body_of(reply)
     expect(payload["ok"]).to be(true)
     expect(payload["return_value"]).to eq({"found" => true, "email" => "x@acme.com"})
@@ -125,7 +125,7 @@ RSpec.describe RootCause::Embassy::Runner do
 
     expect(reply.status).to eq(401)
     expect(body_of(reply).dig("error", "class")).to eq("bad_signature")
-    expect(RootCause::Embassy::Signature.valid?(reply.signature, reply.body, secret: Wire::SECRET)).to be(true)
+    expect(ReplyPen::Embassy::Signature.valid?(reply.signature, reply.body, secret: Wire::SECRET)).to be(true)
     expect(fetch).not_to have_been_requested
   end
 
@@ -144,8 +144,8 @@ RSpec.describe RootCause::Embassy::Runner do
     script = "ENV.values_at(*%w[RC_TENANT_ID RC_TENANT_SLUG RC_TENANT_SCOPE_VALUE])"
     Wire.stub_fetch(script: script)
     inv = Wire.invocation(script: script)
-    RootCause::Embassy::Runner::TRUSTED_TENANT_FIELDS.each { |field| inv.delete(field) }
-    keys = RootCause::Embassy::Executor::TRUSTED_ENV_KEYS
+    ReplyPen::Embassy::Runner::TRUSTED_TENANT_FIELDS.each { |field| inv.delete(field) }
+    keys = ReplyPen::Embassy::Executor::TRUSTED_ENV_KEYS
     original = keys.to_h { |key| [key, [ENV.key?(key), ENV[key]]] }
     keys.each { |key| ENV[key] = "stale-process-value" }
 
@@ -257,7 +257,7 @@ RSpec.describe RootCause::Embassy::Runner do
 
   it "rejects malformed tenant host context" do
     expect(handle(Wire.invocation(tenant_id: "not-a-uuid")).status).to eq(400)
-    expect(handle(Wire.invocation(tenant_id: RootCause::Embassy::Runner::NIL_UUID)).status).to eq(400)
+    expect(handle(Wire.invocation(tenant_id: ReplyPen::Embassy::Runner::NIL_UUID)).status).to eq(400)
     expect(handle(Wire.invocation(tenant_slug: "")).status).to eq(400)
     expect(handle(Wire.invocation(tenant_slug: "Bad Slug")).status).to eq(400)
     expect(handle(Wire.invocation(tenant_id: "", tenant_slug: "acme")).status).to eq(400)
@@ -265,7 +265,7 @@ RSpec.describe RootCause::Embassy::Runner do
     expect(handle(Wire.invocation(tenant_scope_value: "scope\0value")).status).to eq(400)
 
     partial_flat = Wire.invocation
-    RootCause::Embassy::Runner::TRUSTED_TENANT_FIELDS.each { |field| partial_flat.delete(field) }
+    ReplyPen::Embassy::Runner::TRUSTED_TENANT_FIELDS.each { |field| partial_flat.delete(field) }
     partial_flat["tenant_id"] = ""
     expect(handle(partial_flat).status).to eq(400)
   end
@@ -279,7 +279,7 @@ RSpec.describe RootCause::Embassy::Runner do
       "hint" => a_kind_of(String),
       "docs" => a_string_ending_with("#bad_signature")
     )
-    expect(RootCause::Embassy::Signature.valid?(reply.signature, reply.body, secret: Wire::SECRET)).to be(true)
+    expect(ReplyPen::Embassy::Signature.valid?(reply.signature, reply.body, secret: Wire::SECRET)).to be(true)
   end
 
   it "rejects malformed JSON with 400" do
@@ -332,13 +332,13 @@ RSpec.describe RootCause::Embassy::Runner do
     inv = Wire.invocation(params: {"email" => "x@y.z"}, schema: {"email" => "string"})
     reply = handle(inv)
     expect(reply.status).to eq(422) # SchemaError now covers the shorthand
-    expect(RootCause::Embassy::Signature.valid?(reply.signature, reply.body, secret: Wire::SECRET)).to be(true)
+    expect(ReplyPen::Embassy::Signature.valid?(reply.signature, reply.body, secret: Wire::SECRET)).to be(true)
   end
 
   it "returns a signed 500 if a pipeline step raises an unexpected error" do
     # Force a non-Error exception from inside the pipeline (post-auth) and prove
     # the backstop signs and structures it rather than letting it escape.
-    allow(RootCause::Embassy::Schema).to receive(:validate!).and_raise(RuntimeError, "x@acme.com leaked?")
+    allow(ReplyPen::Embassy::Schema).to receive(:validate!).and_raise(RuntimeError, "x@acme.com leaked?")
     reply = handle(Wire.invocation)
     expect(reply.status).to eq(500)
     payload = body_of(reply)
@@ -350,7 +350,7 @@ RSpec.describe RootCause::Embassy::Runner do
     # input-bearing) exception message.
     expect(payload.dig("error", "message")).to eq("RuntimeError")
     expect(reply.body).not_to include("x@acme.com")
-    expect(RootCause::Embassy::Signature.valid?(reply.signature, reply.body, secret: Wire::SECRET)).to be(true)
+    expect(ReplyPen::Embassy::Signature.valid?(reply.signature, reply.body, secret: Wire::SECRET)).to be(true)
   end
 
   it "returns 200 with ok:false when the action itself raises" do
@@ -365,7 +365,7 @@ RSpec.describe RootCause::Embassy::Runner do
     it "runs verify→replay→schema→resolve but never executes, returning a signed would_execute result" do
       script = "raise 'must not run'" # proves the executor is skipped
       stub = Wire.stub_fetch(script: script)
-      executor = instance_double(RootCause::Embassy::Executor)
+      executor = instance_double(ReplyPen::Embassy::Executor)
       allow(executor).to receive(:run)
       runner = described_class.new(config, executor: executor)
 
@@ -382,7 +382,7 @@ RSpec.describe RootCause::Embassy::Runner do
       # The signed fetch (digest-verified resolve) WAS exercised; the executor was NOT.
       expect(stub).to have_been_requested
       expect(executor).not_to have_received(:run)
-      expect(RootCause::Embassy::Signature.valid?(reply.signature, reply.body, secret: Wire::SECRET)).to be(true)
+      expect(ReplyPen::Embassy::Signature.valid?(reply.signature, reply.body, secret: Wire::SECRET)).to be(true)
     end
 
     it "still returns the resolve_failed refusal when resolve fails under dry_run (no side-effect-free pass)" do
@@ -418,7 +418,7 @@ RSpec.describe RootCause::Embassy::Runner do
       reply = handle(Wire.invocation(script: script))
 
       expect(reply.status).to eq(200)
-      expect(RootCause::Embassy::Signature.valid?(reply.signature, reply.body, secret: Wire::SECRET)).to be(true)
+      expect(ReplyPen::Embassy::Signature.valid?(reply.signature, reply.body, secret: Wire::SECRET)).to be(true)
       payload = body_of(reply)
       expect(payload["ok"]).to be(false)
       expect(payload.dig("error", "class")).to eq("Timeout::Error")

@@ -2,9 +2,9 @@
 
 require "stringio"
 
-RSpec.describe RootCause::Embassy::RackApp do
+RSpec.describe ReplyPen::Embassy::RackApp do
   let(:config) { Wire.config }
-  let(:runner) { RootCause::Embassy::Runner.new(config) }
+  let(:runner) { ReplyPen::Embassy::Runner.new(config) }
   let(:app) { described_class.new(runner: runner) }
 
   def env_for(method:, body: "", signature: nil)
@@ -37,20 +37,20 @@ RSpec.describe RootCause::Embassy::RackApp do
   end
 
   it "returns an actionable 503 when a chat-only app mounts the action route" do
-    chat_only = RootCause::Embassy::Config.new
+    chat_only = ReplyPen::Embassy::Config.new
     chat_only.chat_secret = "chat-secret"
     chat_only.chat_project = "example-support"
     chat_only.logger = nil
     chat_only.validate!
 
-    chat_only_app = described_class.new(runner: RootCause::Embassy::Runner.new(chat_only))
+    chat_only_app = described_class.new(runner: ReplyPen::Embassy::Runner.new(chat_only))
 
     status, headers, body = chat_only_app.call(env_for(method: "POST", body: "{}"))
     expect(status).to eq(503)
-    expect(headers).not_to have_key(RootCause::Embassy::Signature::HEADER)
+    expect(headers).not_to have_key(ReplyPen::Embassy::Signature::HEADER)
     error = JSON.parse(body.join)["error"]
     expect(error["code"]).to eq("ACTION_PLANE_DISABLED")
-    expect(error["hint"]).to include("ROOTCAUSE_ACTION_SECRET")
+    expect(error["hint"]).to include("REPLYPEN_ACTION_SECRET")
     expect(error["docs"]).to end_with("errors.md#action_plane_disabled")
 
     # The health child answers the same diagnostic 503, never a bare 404 that reads
@@ -69,7 +69,7 @@ RSpec.describe RootCause::Embassy::RackApp do
   end
 
   it "falls back to the globally-configured runner when none is injected" do
-    RootCause::Embassy.configure { |c|
+    ReplyPen::Embassy.configure { |c|
       c.secret = Wire::SECRET
       c.fetch_url = Wire::FETCH_URL
       c.logger = nil
@@ -82,35 +82,35 @@ end
 
 RSpec.describe "bounded action Rack body" do
   it "bounds reads and signs a 400 independently of absent or forged Content-Length" do
-    limit = RootCause::Embassy::InlineAttachments::MAX_BODY_BYTES
+    limit = ReplyPen::Embassy::InlineAttachments::MAX_BODY_BYTES
     [nil, "1", (limit * 2).to_s].each do |length|
       input = instance_double(StringIO)
       expect(input).to receive(:read).with(limit + 1).and_return(" " * (limit + 1))
       allow(input).to receive(:rewind)
-      app = RootCause::Embassy::RackApp.new(runner: RootCause::Embassy::Runner.new(Wire.config))
+      app = ReplyPen::Embassy::RackApp.new(runner: ReplyPen::Embassy::Runner.new(Wire.config))
       status, headers, body = app.call("REQUEST_METHOD" => "POST", "rack.input" => input, "CONTENT_LENGTH" => length)
       expect(status).to eq(400)
       expect(JSON.parse(body.join).dig("error", "class")).to eq("invalid_request")
-      expect(headers[RootCause::Embassy::Signature::HEADER]).to eq(Wire.sign(body.join))
+      expect(headers[ReplyPen::Embassy::Signature::HEADER]).to eq(Wire.sign(body.join))
     end
   end
 end
 
 RSpec.describe "oversized map-mode action" do
   it "bounds the body and keeps a missing selector opaque without executing" do
-    limit = RootCause::Embassy::InlineAttachments::MAX_BODY_BYTES
+    limit = ReplyPen::Embassy::InlineAttachments::MAX_BODY_BYTES
     input = instance_double(StringIO)
     expect(input).to receive(:read).with(limit + 1).and_return('{"attachments":"' + "a" * limit)
     allow(input).to receive(:rewind)
     config = Wire.config(secret: nil, secrets: {Wire::PROJECT_ID => Wire::SECRET})
-    resolver = instance_double(RootCause::Embassy::Resolver)
+    resolver = instance_double(ReplyPen::Embassy::Resolver)
     expect(resolver).not_to receive(:resolve)
-    runner = RootCause::Embassy::Runner.new(config, resolver: resolver)
-    status, headers, body = RootCause::Embassy::RackApp.new(runner: runner).call(
+    runner = ReplyPen::Embassy::Runner.new(config, resolver: resolver)
+    status, headers, body = ReplyPen::Embassy::RackApp.new(runner: runner).call(
       "REQUEST_METHOD" => "POST", "rack.input" => input, "CONTENT_LENGTH" => "1"
     )
     expect(status).to eq(401)
-    expect(headers).not_to have_key(RootCause::Embassy::Signature::HEADER)
+    expect(headers).not_to have_key(ReplyPen::Embassy::Signature::HEADER)
     expect(JSON.parse(body.join).dig("error", "class")).to eq("bad_signature")
   end
 end

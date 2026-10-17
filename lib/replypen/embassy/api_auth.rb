@@ -4,13 +4,13 @@ require "net/http"
 require "uri"
 require "json"
 
-module RootCause
+module ReplyPen
   module Embassy
-    # Resolves the `Authorization: Bearer` value for the rootcause **API plane**
+    # Resolves the `Authorization: Bearer` value for the ReplyPen **API plane**
     # (Api) — a different channel from the action reverse channel, which is HMAC
     # signed and holds no bearer at all.
     #
-    # rootcause's API authenticates with a short-lived (1h) OAuth **access token**
+    # ReplyPen's API authenticates with a short-lived (1h) OAuth **access token**
     # (`rcoa_…`). An Embassy deployment is provisioned a long-lived, non-rotating
     # **refresh token** (`rcor_…`, the machine credential in `api_key`) and
     # exchanges it at the OAuth token endpoint:

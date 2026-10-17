@@ -1,8 +1,8 @@
 # frozen_string_literal: true
 
-ReplayError = RootCause::Embassy::ReplayError
+ReplayError = ReplyPen::Embassy::ReplayError
 
-RSpec.describe RootCause::Embassy::Replay do
+RSpec.describe ReplyPen::Embassy::Replay do
   let(:store) { described_class::MemoryStore.new }
   let(:now) { Time.utc(2026, 6, 3, 10, 0, 0) }
 

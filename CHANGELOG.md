@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.15.0
+
+- **Rebrand to ReplyPen:** gem `replypen-embassy`, namespace `ReplyPen::Embassy`, code under
+  `lib/replypen/`. Legacy surface keeps working unchanged: gem name `rootcause-embassy` (second
+  gemspec, same files), `require "rootcause-embassy"` / `"rootcause/embassy"`, and `RootCause` as an
+  alias of the same module.
+- **Chat tokens mint `aud` `replypen:chat:<project>`** (was `rootcause:chat:<project>`; the host accepts both).
+- Hints and docs name `REPLYPEN_*` env vars; the gem still reads no env — initializers choose names.
+- Log prefixes `[rootcause-action]`/`[rootcause-result]`/… → `[replypen-…]`; placeholder fetch URL host
+  `replypen.invalid`. Wire defaults (`/rootcause/action`, `/rootcause/result`, `tmp/rootcause/actions`) unchanged.
+- Contract fixtures re-vendored from hub `450e9d8a9195a58aae6c7f0d812587e4d18a88c9`.
+
 ## 0.14.0
 
 - Loader contract `?v=5` enables the hosted loader's per-message `getPageContext` callback.

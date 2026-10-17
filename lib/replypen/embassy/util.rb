@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-module RootCause
+module ReplyPen
   module Embassy
     # The two-line predicates every file used to redefine for itself. One home, so
     # "blank" means one thing on the wire path and the monotonic clock is read the

@@ -1,29 +1,34 @@
-# rootcause-embassy
+# replypen-embassy
 
-> **Renamed:** this gem was `rootcause-action-runner` (namespace `RootCause::ActionRunner`) ≤ 0.2.0.
-> It is now **`rootcause-embassy`** / `RootCause::Embassy` as of 0.3.0.
+> **Renamed:** `rootcause-action-runner` / `RootCause::ActionRunner` (≤ 0.2.0) → `rootcause-embassy` /
+> `RootCause::Embassy` (0.3.0–0.14.x) → **`replypen-embassy`** / `ReplyPen::Embassy` (0.15.0+). The legacy
+> gem name, `require` paths and `RootCause::` namespace keep working unchanged (see [Legacy names](#legacy-names)).
 
-The Ruby **Embassy** is rootcause's trusted, in-app presence inside your Rails/Rack runtime.
+The Ruby **Embassy** is ReplyPen's trusted, in-app presence inside your Rails/Rack runtime.
 
 It does four things:
 
-1. **Chat** — mint the short-lived token that lets a signed-in user chat with rootcause in your UI.
+1. **Chat** — mint the short-lived token that lets a signed-in user chat with ReplyPen in your UI.
 2. **Actions** — receive a signed, digest-pinned invocation and run the approved script against your app.
-3. **Analysis** — ask rootcause to analyze content and receive the drafted answer later.
-4. **API** — call any rootcause API endpoint with bearer auth handled for you.
+3. **Analysis** — ask ReplyPen to analyze content and receive the drafted answer later.
+4. **API** — call any ReplyPen API endpoint with bearer auth handled for you.
 
 No executable code travels on the wire. Runtime dependencies: Ruby standard library only.
 
 > The authoritative design of this gem is [SPEC.md](SPEC.md); the cross-language wire contract every
-> Embassy implements is [`rootcause-embassy/CONTRACT.md`](https://github.com/rootcause-org/rootcause-embassy/blob/main/CONTRACT.md), and the
-> integrator guides live in [`docs/integrator/`](https://github.com/rootcause-org/rootcause-embassy/tree/main/docs/integrator).
+> Embassy implements is [`replypen-embassy/CONTRACT.md`](https://github.com/replypen/replypen-embassy/blob/main/CONTRACT.md), and the
+> integrator guides live in [`docs/integrator/`](https://github.com/replypen/replypen-embassy/tree/main/docs/integrator).
 
 ## Install
 
 ```ruby
 # Gemfile
-gem "rootcause-embassy"
+gem "replypen-embassy"
 ```
+
+The gem reads no environment variables itself — your initializer passes values in. The snippets
+use the canonical `REPLYPEN_*` names; existing deploys that set the legacy `ROOTCAUSE_*` names keep
+reading those in their own initializer, nothing else changes.
 
 ## Chat quickstart
 
@@ -32,10 +37,10 @@ Start with chat only. No action secret, fetch endpoint, or action route is requi
 backend and never reaches HTML or JavaScript.
 
 ```ruby
-# config/initializers/rootcause.rb
-RootCause::Embassy.configure do |c|
-  c.chat_secret  = ENV.fetch("ROOTCAUSE_CHAT_SECRET")
-  c.chat_project = ENV.fetch("ROOTCAUSE_CHAT_PROJECT")
+# config/initializers/replypen.rb
+ReplyPen::Embassy.configure do |c|
+  c.chat_secret  = ENV.fetch("REPLYPEN_CHAT_SECRET")
+  c.chat_project = ENV.fetch("REPLYPEN_CHAT_PROJECT")
   c.logger = Rails.logger
 end
 ```
@@ -43,7 +48,7 @@ end
 ```erb
 <%# Inside an authenticated view; identity and tenant come from server-side authorization. %>
 <div id="replypen-chat"></div>
-<%= RootCause::Embassy::Chat.widget_tag_html(
+<%= ReplyPen::Embassy::Chat.widget_tag_html(
       external_id: current_user.id.to_s,
       kind: "app_user",
       tenant: current_tenant&.slug,
@@ -56,18 +61,18 @@ end
 Mint a fresh token on every render. A long-lived SPA re-mints at half-life; the loader handles
 `auth-expired` with a guarded host-page reload. Token TTL defaults to two hours and cannot exceed 24
 hours. The complete Rails controller, view, routes, and CSP checklist are in
-[`examples/rails-chat`](https://github.com/rootcause-org/rootcause-embassy-ruby/tree/main/examples/rails-chat).
+[`examples/rails-chat`](https://github.com/replypen/replypen-embassy-ruby/tree/main/examples/rails-chat).
 
 Setup failures are typed and safe to branch on:
 
 ```ruby
-rescue RootCause::Embassy::Error => error
+rescue ReplyPen::Embassy::Error => error
   Rails.logger.warn("ReplyPen setup failed: #{error.code}")
 end
 ```
 
 Meaning, self-fix steps, verification, and escalation live in the public
-[integrator guides](https://github.com/rootcause-org/rootcause-embassy/tree/main/docs/integrator).
+[integrator guides](https://github.com/replypen/replypen-embassy/tree/main/docs/integrator).
 
 ## Add actions and analysis later
 
@@ -75,12 +80,12 @@ Meaning, self-fix steps, verification, and escalation live in the public
 chat-first setup, merge these fields into the same initializer block (the full block is shown here).
 
 ```ruby
-# config/initializers/rootcause.rb
-RootCause::Embassy.configure do |c|
-  c.chat_secret  = ENV.fetch("ROOTCAUSE_CHAT_SECRET")
-  c.chat_project = ENV.fetch("ROOTCAUSE_CHAT_PROJECT")
-  c.secret    = ENV.fetch("ROOTCAUSE_ACTION_SECRET") # reverse-channel HMAC secret (per project)
-  c.fetch_url = "https://<rootcause>/actions/script" # script-by-digest endpoint
+# config/initializers/replypen.rb
+ReplyPen::Embassy.configure do |c|
+  c.chat_secret  = ENV.fetch("REPLYPEN_CHAT_SECRET")
+  c.chat_project = ENV.fetch("REPLYPEN_CHAT_PROJECT")
+  c.secret    = ENV.fetch("REPLYPEN_ACTION_SECRET") # reverse-channel HMAC secret (per project)
+  c.fetch_url = "https://<replypen>/actions/script" # script-by-digest endpoint
   c.timeout   = 20                                   # hard per-EXECUTION timeout (seconds)
   c.total_deadline = 22                              # budget for the WHOLE invocation (fetch + execute)
   c.require_tenant_context = true                    # REQUIRED on tenant-enabled projects
@@ -99,12 +104,12 @@ One mount may serve several projects without sharing a reverse key. Configure **
 single `secret` above or a non-empty UUID map; map values must be non-blank:
 
 ```ruby
-RootCause::Embassy.configure do |c|
+ReplyPen::Embassy.configure do |c|
   c.secrets = {
-    "11111111-1111-1111-1111-111111111111" => ENV.fetch("ROOTCAUSE_ACTION_SECRET_SUPPORT"),
-    "22222222-2222-2222-2222-222222222222" => ENV.fetch("ROOTCAUSE_ACTION_SECRET_BILLING"),
+    "11111111-1111-1111-1111-111111111111" => ENV.fetch("REPLYPEN_ACTION_SECRET_SUPPORT"),
+    "22222222-2222-2222-2222-222222222222" => ENV.fetch("REPLYPEN_ACTION_SECRET_BILLING"),
   }
-  c.fetch_url = "https://<rootcause>/actions/script"
+  c.fetch_url = "https://<replypen>/actions/script"
 end
 ```
 
@@ -144,10 +149,10 @@ Explicit mount — least magic, easiest to restrict at the edge:
 
 ```ruby
 # config/routes.rb
-mount RootCause::Embassy::RackApp.new => RootCause::Embassy.config.mount_at
+mount ReplyPen::Embassy::RackApp.new => ReplyPen::Embassy.config.mount_at
 ```
 
-**Recommended (documented, not enforced in v1):** restrict the route to rootcause's egress IP at the
+**Recommended (documented, not enforced in v1):** restrict the route to ReplyPen's egress IP at the
 edge, and run under a least-privileged DB role where feasible.
 
 Mounting the action (and result) routes in a **chat-only** deployment is safe: with no action secret
@@ -192,14 +197,14 @@ action plane on: the plane is enabled only by configuring `secret` (or `secrets`
 ## Async analysis (trigger + result callback)
 
 The opposite direction of the invocation flow, on the **same reverse-channel secret**: your app asks
-rootcause to *analyze this* and later receives the drafted answer into a Ruby handler — no polling, no
+ReplyPen to *analyze this* and later receives the drafted answer into a Ruby handler — no polling, no
 job rig of your own. The host keeps the conversation history keyed by an opaque **`session_id`**, so a
 follow-up sends only the new message — persist the `session_id` and pass it back. See
 [docs/async-analysis-spec.md](docs/async-analysis-spec.md).
 
 ```ruby
 # Add these lines inside the single configure block above.
-c.trigger_url     = "https://<rootcause>/analyses/<project>" # where start_analysis POSTs
+c.trigger_url     = "https://<replypen>/analyses/<project>" # where start_analysis POSTs
 c.result_mount_at = "/rootcause/result"                      # route that receives async results
 c.result_handler  = "AnalysisResultHandler"                  # String → lazy-loaded, reload-safe
 c.max_attachment_bytes = 256 * 1024                          # per-attachment inline cap (decoded)
@@ -208,7 +213,7 @@ c.max_total_attachment_bytes = 6 * 1024 * 1024               # aggregate cap per
 
 ```ruby
 # config/routes.rb — mount the result route alongside the invocation route
-mount RootCause::Embassy::ResultRackApp.new => RootCause::Embassy.config.result_mount_at
+mount ReplyPen::Embassy::ResultRackApp.new => ReplyPen::Embassy.config.result_mount_at
 ```
 
 **Trigger** from a background job (the trigger is a quick signed POST; running it off the request keeps
@@ -218,7 +223,7 @@ your controller fast and lets you retry on `TriggerError`):
 # app/jobs/analyze_ticket_job.rb
 class AnalyzeTicketJob < ApplicationJob
   def perform(ticket)
-    analysis = RootCause::Embassy.start_analysis(
+    analysis = ReplyPen::Embassy.start_analysis(
       subject: ticket.subject,
       body:    ticket.body,                       # plain text only (v1)
       attachments: [{filename: "error.log", mime_type: "text/plain",
@@ -236,7 +241,7 @@ class AnalyzeTicketJob < ApplicationJob
 end
 ```
 
-A non-2xx / transport failure raises `RootCause::Embassy::TriggerError` (yours to retry; `#status` and
+A non-2xx / transport failure raises `ReplyPen::Embassy::TriggerError` (yours to retry; `#status` and
 the host's `#code` are set on a non-2xx); an over-cap or malformed attachment raises `ArgumentError`
 before anything is sent.
 
@@ -247,7 +252,7 @@ run can read the originating chat (the action's approved manifest must opt in):
 ```ruby
 begin
   client.start_analysis(subject:, body:, tenant:, context_refs: [{kind: "action_run", id: ticket.rc_action_run_id}])
-rescue RootCause::Embassy::TriggerError => e
+rescue ReplyPen::Embassy::TriggerError => e
   raise unless e.code == "CONTEXT_REF_REFUSED"
   client.start_analysis(subject:, body:, tenant:) # same trigger, without the chat
 end
@@ -257,7 +262,7 @@ Only the stored env value, never a param or user text. At most one reference; a 
 `ANALYSIS_REQUEST_INVALID` before sending.
 
 **Who it is for** — pass `principal:` when your app knows the authenticated end user behind the
-trigger, so rootcause can scope the run's data access to them:
+trigger, so ReplyPen can scope the run's data access to them:
 
 ```ruby
 principal: {kind: "app_user", external_id: current_user.id.to_s,
@@ -270,11 +275,11 @@ fields are optional. Assert it from your **own authenticated session** only — 
 a URL parameter, or anything the end user can set. Omit the kwarg entirely when there is no
 authenticated user. It stays dormant unless the project declares `scope_claims` host-side.
 
-**Handle the result** — a plain class in `app/`, idempotent (rootcause **redelivers** on a lost ack):
+**Handle the result** — a plain class in `app/`, idempotent (ReplyPen **redelivers** on a lost ack):
 
 ```ruby
-# app/rootcause/analysis_result_handler.rb
-class AnalysisResultHandler < RootCause::Embassy::ResultHandler
+# app/replypen/analysis_result_handler.rb
+class AnalysisResultHandler < ReplyPen::Embassy::ResultHandler
   def process(result)
     return unless result.metadata[:resource_type] == "SupportTicket"
     ticket = SupportTicket.find_by(id: result.metadata[:resource_id]) or return
@@ -293,11 +298,11 @@ end
 ```
 
 `result.draft` and `result.note` are **markdown strings** — `draft` is the drafted answer's
-`body_markdown`; `note` is the *summary* note's `body_markdown` (rootcause delivers `notes[]` — one
+`body_markdown`; `note` is the *summary* note's `body_markdown` (ReplyPen delivers `notes[]` — one
 summary note plus widget notes; the gem surfaces only the summary, whose body carries the run-trace as
 a markdown link). HTML is used only as a fallback when markdown is absent. `draft` / `note` /
 `attachments` / `questions` are informational (safe to auto-burn); **`actions[]`** are vetted
-side-effects rootcause *proposes* — render them for a human to click, and they ride back through the
+side-effects ReplyPen *proposes* — render them for a human to click, and they ride back through the
 **invocation route**. The gem never auto-runs them. An action may carry an optional
 **`resource_url`**: an absolute link to the record it would modify in *your own* admin UI. It is
 render-only — a secondary "view record" link beside the confirm button, never the confirm target
@@ -314,7 +319,7 @@ Two more lists complete the surface:
 - **`delete_ids`** — wire key `delete` (a Ruby reserved word, hence the accessor name): note `key`s the
   run retracts. Dropping an unknown key is a no-op.
 
-**Redelivery is idempotent at the route.** rootcause sends a **stable** `nonce` (the run id) on every
+**Redelivery is idempotent at the route.** ReplyPen sends a **stable** `nonce` (the run id) on every
 redelivery of the same result, so a duplicate inside the replay window is acked with the same signed
 `200 {"ok":true}` and is **not** dispatched twice — no 409. (A stale `issued_at` is still a 409.) If
 your handler *raises*, the delivery is refused with a signed 500 and the nonce is released, so the
@@ -324,7 +329,7 @@ host's next redelivery does reach the handler — keep `process` idempotent.
 **only the new message** (never prior turns):
 
 ```ruby
-RootCause::Embassy.start_analysis(
+ReplyPen::Embassy.start_analysis(
   subject:    "Still failing after the reset",
   body:       customer_reply,                      # just the new message
   session_id: ticket.rc_session_id,                # the id you persisted above
@@ -339,32 +344,32 @@ Answers may accompany a sent reply or travel alone. An answers-only capture trig
 and returns its `analysis_id` when the host accepts it:
 
 ```ruby
-capture = RootCause::Embassy.capture_sent_message(
+capture = ReplyPen::Embassy.capture_sent_message(
   session_id: ticket.rc_session_id,
   answers: [{id: "country", values: ["BE"]}]
 )
 ticket.update!(rc_analysis_id: capture.analysis_id) if capture.analysis_id
 ```
 
-## Call any rootcause endpoint (the API plane)
+## Call any ReplyPen endpoint (the API plane)
 
-`RootCause::Embassy.api` is a **generic** authenticated caller for rootcause's HTTP API — the same
+`ReplyPen::Embassy.api` is a **generic** authenticated caller for ReplyPen's HTTP API — the same
 surface the `rc` CLI drives — so a new host endpoint is usable the day it ships, with no gem release
 and no per-endpoint wrapper. The gem owns auth (including the OAuth `rcor_` → `rcoa_` exchange and
 its cache), timeouts and JSON; you own the path and the body. **What endpoints exist is the host's
-contract** — see rootcause's API spec/manifest. Full details:
+contract** — see ReplyPen's API spec/manifest. Full details:
 [docs/generic-api.md](docs/generic-api.md).
 
 ```ruby
-# config/initializers/rootcause.rb — extends the block above (both or neither)
-RootCause::Embassy.configure do |c|
-  c.api_base_url = ENV.fetch("ROOTCAUSE_API_BASE_URL") # e.g. "https://app.replypen.com"
-  c.api_key      = ENV.fetch("ROOTCAUSE_API_KEY")      # rcor_… machine credential
+# config/initializers/replypen.rb — extends the block above (both or neither)
+ReplyPen::Embassy.configure do |c|
+  c.api_base_url = ENV.fetch("REPLYPEN_API_BASE_URL") # e.g. "https://app.replypen.com"
+  c.api_key      = ENV.fetch("REPLYPEN_API_KEY")      # rcor_… machine credential
 end
 ```
 
 ```ruby
-result = RootCause::Embassy.api.patch("/api/v1/tenants/#{slug}/profile",
+result = ReplyPen::Embassy.api.patch("/api/v1/tenants/#{slug}/profile",
   body: {settings: {iban: "BE80 7350 6212 7777", care_hours: "8:00 - 17:30"}, source: "embassy"})
 
 result.ok?          # 2xx?
@@ -374,12 +379,12 @@ result.field_errors # the host's per-field validation rejections on a 4xx
 result.retryable?   # transport / auth / 5xx / 429 / 408 → true; any other 4xx → false
 ```
 
-Refresh tokens are **project-pinned**: to talk to a second rootcause project, build an independent
+Refresh tokens are **project-pinned**: to talk to a second ReplyPen project, build an independent
 caller with its own credential and its own token cache (the configured singleton is untouched):
 
 ```ruby
-RootCause::Embassy.api_for(api_base_url: ENV.fetch("ROOTCAUSE_API_BASE_URL"),
-                           api_key: ENV.fetch("ROOTCAUSE_SUPPORT_API_KEY"))
+ReplyPen::Embassy.api_for(api_base_url: ENV.fetch("REPLYPEN_API_BASE_URL"),
+                           api_key: ENV.fetch("REPLYPEN_SUPPORT_API_KEY"))
 ```
 
 An HTTP outcome **never raises** — inspect the frozen result (`retryable?` tells a job whether to
@@ -389,7 +394,7 @@ another. Both settings are optional — an Embassy that never calls `.api` behav
 
 ## Embedded chat (mint a token, drop in the widget)
 
-Let a signed-in user chat with the rootcause agent from inside your app. Your backend mints a
+Let a signed-in user chat with the ReplyPen agent from inside your app. Your backend mints a
 short-lived, single-use HS256 token; the browser never holds the key, so it cannot chat as another
 user, in another tenant, from another origin, or past the expiry.
 
@@ -399,13 +404,13 @@ without chat behaves exactly as before.
 
 ```ruby
 # Add these lines inside the existing configure block; never call configure twice.
-c.chat_secret   = ENV.fetch("ROOTCAUSE_CHAT_SECRET")   # the project's webhook_secret
-c.chat_project  = ENV.fetch("ROOTCAUSE_CHAT_PROJECT")  # public project slug
+c.chat_secret   = ENV.fetch("REPLYPEN_CHAT_SECRET")   # the project's webhook_secret
+c.chat_project  = ENV.fetch("REPLYPEN_CHAT_PROJECT")  # public project slug
 # c.chat_base_url = "https://app.replypen.com"          # this is already the default
 ```
 
 ```erb
-<%# app/views/…, with `include RootCause::Embassy::ChatViewHelper` in a helper %>
+<%# app/views/…, with `include ReplyPen::Embassy::ChatViewHelper` in a helper %>
 <%= chat_widget_tag(external_id: current_admin_user.id,
                     kind:        "app_user",
                     tenant:      ActsAsTenant.current_tenant.slug,
@@ -415,8 +420,8 @@ c.chat_project  = ENV.fetch("ROOTCAUSE_CHAT_PROJECT")  # public project slug
                     mode:        :page, target: "#rc-chat") %>
 ```
 
-`external_id` must be an **opaque, stable** user id (never a name/email) — rootcause anchors
-conversation ownership to it. `tenant` is the rootcause tenant **slug**, required on tenant-enabled
+`external_id` must be an **opaque, stable** user id (never a name/email) — ReplyPen anchors
+conversation ownership to it. `tenant` is the ReplyPen tenant **slug**, required on tenant-enabled
 projects, and must come from your **server-side authorized** tenant context (never client input):
 every claim rides inside the signature, so a swapped tenant is simply an invalid token.
 
@@ -434,13 +439,13 @@ Outside Rails (or to mint the token yourself, e.g. for a JSON endpoint that refr
 one):
 
 ```ruby
-RootCause::Embassy.chat_token(external_id: user.id, kind: "app_user",
+ReplyPen::Embassy.chat_token(external_id: user.id, kind: "app_user",
   tenant: tenant.slug, origin: "https://app.example.com", locale: "nl", color_scheme: "light",
   ttl: 7200)
 # => "eyJhbGciOiJIUzI1NiIs…"  (claims: sub/aud/iss/jti/origin/tenant/locale/color_scheme/iat/nbf/exp/principal — see SPEC.md §5b)
 ```
 
-`RootCause::Embassy::Chat.widget_tag_html(...)` is the framework-agnostic core behind the view helper
+`ReplyPen::Embassy::Chat.widget_tag_html(...)` is the framework-agnostic core behind the view helper
 (same options, returns an escaped plain `String`).
 
 ## Multi-worker deployments
@@ -450,15 +455,15 @@ workers a replay could slip through on a second worker, so inject a shared store
 to `add?(nonce, ttl:)`, e.g. a `Rails.cache`-backed adapter using `write(unless_exist: true)`):
 
 ```ruby
-runner = RootCause::Embassy::Runner.new(RootCause::Embassy.config, nonce_store: MyCacheStore.new)
-mount RootCause::Embassy::RackApp.new(runner: runner) => "/rootcause/action"
+runner = ReplyPen::Embassy::Runner.new(ReplyPen::Embassy.config, nonce_store: MyCacheStore.new)
+mount ReplyPen::Embassy::RackApp.new(runner: runner) => "/rootcause/action"
 ```
 
 The **result route** has its own nonce store with the same caveat — inject a shared one the same way:
 
 ```ruby
-receiver = RootCause::Embassy::ResultReceiver.new(RootCause::Embassy.config, nonce_store: MyCacheStore.new)
-mount RootCause::Embassy::ResultRackApp.new(receiver: receiver) => "/rootcause/result"
+receiver = ReplyPen::Embassy::ResultReceiver.new(ReplyPen::Embassy.config, nonce_store: MyCacheStore.new)
+mount ReplyPen::Embassy::ResultRackApp.new(receiver: receiver) => "/rootcause/result"
 ```
 
 Give a shared **result-route** store a `delete(nonce)` too: the receiver calls it to release a nonce
@@ -481,3 +486,16 @@ StandardRB from `.standard.yml`). They guard contract invariants that live in th
 the refusal vocabulary, the internal-error log line, and second-long sleeps in specs. CI additionally
 proves `spec/fixtures/contract/` is byte-identical to the contract hub at the recorded `HUB_SHA`, and
 that the hub has not moved those goldens since.
+
+## Legacy names
+
+Installed apps keep working without edits:
+
+- `gem "rootcause-embassy", github: "rootcause-org/rootcause-embassy-ruby"` — the repo ships a second
+  `rootcause-embassy.gemspec` with the same files; GitHub redirects the old repo URL.
+- `require "rootcause-embassy"` / `require "rootcause/embassy"` — load the same code.
+- `RootCause::Embassy` — `RootCause` is the same module object as `ReplyPen`, so constants, singletons
+  (`RootCause::Embassy.config`), subclasses and `rescue` clauses are interchangeable.
+
+On your next bump, prefer `gem "replypen-embassy", github: "replypen/replypen-embassy-ruby"` and
+`ReplyPen::Embassy`; no other change is needed. Chat tokens now carry `aud` `replypen:chat:<project>`.

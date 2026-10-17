@@ -2,7 +2,7 @@
 
 require "json"
 
-module RootCause
+module ReplyPen
   module Embassy
     # What every inbound endpoint on the reverse channel does identically:
     # verify-then-parse, refuse in one signed vocabulary, and never let an

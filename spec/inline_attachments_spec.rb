@@ -2,7 +2,7 @@
 
 RSpec.describe "signed inline action attachments" do
   let(:config) { Wire.config }
-  let(:runner) { RootCause::Embassy::Runner.new(config) }
+  let(:runner) { ReplyPen::Embassy::Runner.new(config) }
   let(:id) { "55555555-5555-5555-5555-555555555555" }
   let(:second_id) { "66666666-6666-6666-6666-666666666666" }
   let(:bytes) { "hello\x00".b * 12_000 }
@@ -53,12 +53,12 @@ RSpec.describe "signed inline action attachments" do
   it "uses the earlier total deadline after resolution consumes invocation budget" do
     config.timeout = 3
     config.total_deadline = 3.1
-    resolver = instance_double(RootCause::Embassy::Resolver)
+    resolver = instance_double(ReplyPen::Embassy::Resolver)
     allow(resolver).to receive(:resolve) {
       sleep 0.15
       script
     }
-    local = RootCause::Embassy::Runner.new(config, resolver: resolver)
+    local = ReplyPen::Embassy::Runner.new(config, resolver: resolver)
     raw = JSON.generate(invocation)
     started = Time.now.to_f
     reply = local.handle(raw_body: raw, signature: Wire.sign(raw))
@@ -104,9 +104,9 @@ RSpec.describe "signed inline action attachments" do
   end
 
   it "refuses declared and encoded caps before allocating decoded files" do
-    max = RootCause::Embassy::InlineAttachments::MAX_FILE_BYTES
+    max = ReplyPen::Embassy::InlineAttachments::MAX_FILE_BYTES
     unavailable = descriptor.slice("attachment_id", "filename", "mime_type", "size_bytes").merge("error" => "unavailable")
-    oversized = descriptor.merge("content_base64" => "a" * (RootCause::Embassy::InlineAttachments::MAX_ENCODED_FILE_BYTES + 1))
+    oversized = descriptor.merge("content_base64" => "a" * (ReplyPen::Embassy::InlineAttachments::MAX_ENCODED_FILE_BYTES + 1))
     payloads = [invocation(descriptors: [descriptor.merge("size_bytes" => max + 1)]), invocation(descriptors: [oversized]),
       invocation(descriptors: 3.times.map { |n| descriptor.merge("attachment_id" => format("%08d-5555-5555-5555-555555555555", n), "size_bytes" => max) }),
       invocation(descriptors: 6.times.map { |n| unavailable.merge("attachment_id" => format("%08d-5555-5555-5555-555555555555", n)) })]
@@ -131,7 +131,7 @@ RSpec.describe "signed inline action attachments" do
   end
 
   it "restores stale variables and removes files after action error, execution timeout, and total timeout" do
-    keys = RootCause::Embassy::Executor::ACTION_ENV_KEYS
+    keys = ReplyPen::Embassy::Executor::ACTION_ENV_KEYS
     previous = keys.to_h { |key| [key, ENV[key]] }
     keys.each { |key| ENV[key] = "stale" }
     paths = []
@@ -140,14 +140,14 @@ RSpec.describe "signed inline action attachments" do
       timeout_config = Wire.config(timeout: 0.02, total_deadline: 0.03)
       Wire.stub_fetch(script: body)
       raw = JSON.generate(invocation(script: body))
-      reply = RootCause::Embassy::Runner.new(timeout_config).handle(raw_body: raw, signature: Wire.sign(raw))
+      reply = ReplyPen::Embassy::Runner.new(timeout_config).handle(raw_body: raw, signature: Wire.sign(raw))
       expect(JSON.parse(reply.body)["ok"]).to be(false)
       expect(keys.map { |key| ENV[key] }).to all(eq("stale"))
     end
     timeout_config = Wire.config(timeout: 0.1, total_deadline: 0.02)
     Wire.stub_fetch(script: "sleep 0.1")
     raw = JSON.generate(invocation(script: "sleep 0.1"))
-    reply = RootCause::Embassy::Runner.new(timeout_config).handle(raw_body: raw, signature: Wire.sign(raw))
+    reply = ReplyPen::Embassy::Runner.new(timeout_config).handle(raw_body: raw, signature: Wire.sign(raw))
     expect(JSON.parse(reply.body)["ok"]).to be(false)
     expect(keys.map { |key| ENV[key] }).to all(eq("stale"))
     paths.each { |path| expect(File).not_to exist(path) }

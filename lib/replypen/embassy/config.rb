@@ -3,7 +3,7 @@
 require "logger"
 require "uri"
 
-module RootCause
+module ReplyPen
   module Embassy
     # Customer-supplied configuration, set once in an initializer. Values are read
     # on every request, so the same Config instance is shared and treated as
@@ -20,7 +20,7 @@ module RootCause
       # The single mounted route, e.g. "/rootcause/action".
       attr_accessor :mount_at
 
-      # Script-by-digest endpoint on the rootcause host, hit on a cache miss.
+      # Script-by-digest endpoint on the ReplyPen host, hit on a cache miss.
       attr_accessor :fetch_url
 
       # Hard per-EXECUTION wall-clock timeout in seconds (Timeout backstop around the
@@ -71,16 +71,16 @@ module RootCause
       # --- async analysis (see docs/async-analysis-spec.md) ---
 
       # Where start_analysis POSTs the signed trigger, e.g.
-      # "https://<rootcause>/analyses/<project>". Required only to trigger.
+      # "https://<replypen>/analyses/<project>". Required only to trigger.
       attr_accessor :trigger_url
 
       # Where capture_sent_message POSTs the signed sent-message capture, e.g.
-      # "https://<rootcause>/analyses/<project>/sent-message". Reuses `secret`
+      # "https://<replypen>/analyses/<project>/sent-message". Reuses `secret`
       # (no new crypto). Required only to capture; not part of validate!.
       attr_accessor :sent_message_url
 
       # Route that receives async results. Mounted like mount_at; firewall it to
-      # rootcause's egress IP, same recommendation as the invocation route.
+      # ReplyPen's egress IP, same recommendation as the invocation route.
       attr_accessor :result_mount_at
 
       # Customer's result handler, as a class NAME string (lazy-loaded, reload-safe)
@@ -99,12 +99,12 @@ module RootCause
 
       # --- API plane (see Api, docs/generic-api.md) ---
 
-      # Origin of the rootcause API, e.g. "https://app.replypen.com" — paths are
+      # Origin of the ReplyPen API, e.g. "https://app.replypen.com" — paths are
       # joined onto it ("/api/v1/…"), and it is also where the OAuth token
       # exchange happens. Optional: an Embassy that never calls `.api` leaves it nil.
       attr_accessor :api_base_url
 
-      # Machine credential for the API plane (ENV ROOTCAUSE_API_KEY). An `rcor_`
+      # Machine credential for the API plane (ENV REPLYPEN_API_KEY). An `rcor_`
       # refresh token is exchanged for a short-lived `rcoa_` access token and
       # cached (ApiAuth); anything else is sent verbatim as the bearer. A THIRD,
       # separate privilege boundary — never the action `secret` or `chat_secret`.
@@ -114,24 +114,24 @@ module RootCause
       # --- embedded chat (see Chat) ---
 
       # The project's `webhook_secret`, used ONLY to mint embed-chat tokens (ENV
-      # ROOTCAUSE_CHAT_SECRET). A deliberately separate privilege boundary from the
+      # REPLYPEN_CHAT_SECRET). A deliberately separate privilege boundary from the
       # action-plane `secret`: neither ever falls back to the other, so a leaked
       # chat key cannot buy action execution. Optional — an Embassy without chat
       # leaves all three chat attributes nil.
       attr_accessor :chat_secret
 
-      # The rootcause project name the token is issued for, e.g. "acme-support"
-      # (ENV ROOTCAUSE_CHAT_PROJECT). Public — it ships in the widget tag.
+      # The ReplyPen project name the token is issued for, e.g. "acme-support"
+      # (ENV REPLYPEN_CHAT_PROJECT). Public — it ships in the widget tag.
       attr_accessor :chat_project
 
       # Origin serving the hosted chat widget, e.g. "https://app.replypen.com"
-      # (ENV ROOTCAUSE_CHAT_BASE_URL). Needed only by the widget tag, not by minting.
+      # (ENV REPLYPEN_CHAT_BASE_URL). Needed only by the widget tag, not by minting.
       attr_accessor :chat_base_url
 
-      # The placeholder fetch_url shipped as the default when ROOTCAUSE_FETCH_URL
+      # The placeholder fetch_url shipped as the default when REPLYPEN_FETCH_URL
       # is unset. Reaching resolve with this URL fails opaquely; the boot guard
       # catches it eagerly when the reverse channel is active.
-      PLACEHOLDER_FETCH_URL = "https://rootcause.invalid/actions/script"
+      PLACEHOLDER_FETCH_URL = "https://replypen.invalid/actions/script"
       DEFAULT_CHAT_BASE_URL = "https://app.replypen.com"
 
       def initialize
@@ -189,7 +189,7 @@ module RootCause
         unless action_plane_enabled?
           raise Error.public(
             "ACTION_PLANE_DISABLED",
-            "Configure ROOTCAUSE_ACTION_SECRET and ROOTCAUSE_FETCH_URL before using actions or analysis."
+            "Configure REPLYPEN_ACTION_SECRET and REPLYPEN_FETCH_URL before using actions or analysis."
           )
         end
 
@@ -204,16 +204,16 @@ module RootCause
       def validate_action!
         validate_reverse_secrets!
         if unset?(fetch_url)
-          raise Error.public("ACTION_FETCH_URL_REQUIRED", "Set ROOTCAUSE_FETCH_URL before enabling actions or analysis.")
+          raise Error.public("ACTION_FETCH_URL_REQUIRED", "Set REPLYPEN_FETCH_URL before enabling actions or analysis.")
         end
         # When the reverse channel is active (secret present), the placeholder
-        # fetch_url is a deployment mistake (ROOTCAUSE_FETCH_URL unset) that would
+        # fetch_url is a deployment mistake (REPLYPEN_FETCH_URL unset) that would
         # otherwise fail opaquely at the first resolve. Name the fix at boot. An
         # inert app (no secret) never fetches a script, so the placeholder is fine.
         if reverse_channel_configured? && placeholder_fetch_url?
           raise Error.public(
             "ACTION_FETCH_URL_REQUIRED",
-            "Set ROOTCAUSE_FETCH_URL to the host's absolute script endpoint before enabling actions.",
+            "Set REPLYPEN_FETCH_URL to the host's absolute script endpoint before enabling actions.",
             "fetch_url is the placeholder #{fetch_url}"
           )
         end
@@ -260,14 +260,14 @@ module RootCause
         if unset?(api_base_url)
           raise Error.public(
             "API_BASE_URL_REQUIRED",
-            "Set ROOTCAUSE_API_BASE_URL when ROOTCAUSE_API_KEY is configured.",
+            "Set REPLYPEN_API_BASE_URL when REPLYPEN_API_KEY is configured.",
             "api_base_url is required when api_key is set"
           )
         end
         if unset?(api_key)
           raise Error.public(
             "API_KEY_REQUIRED",
-            "Set ROOTCAUSE_API_KEY when ROOTCAUSE_API_BASE_URL is configured.",
+            "Set REPLYPEN_API_KEY when REPLYPEN_API_BASE_URL is configured.",
             "api_key is required when api_base_url is set"
           )
         end
@@ -275,7 +275,7 @@ module RootCause
 
         raise Error.public(
           "API_BASE_URL_INVALID",
-          "Set ROOTCAUSE_API_BASE_URL to an absolute http or https URL.",
+          "Set REPLYPEN_API_BASE_URL to an absolute http or https URL.",
           "api_base_url must be an absolute http(s) URL"
         )
       end
@@ -292,17 +292,17 @@ module RootCause
         return if unset?(chat_secret) && unset?(chat_project)
 
         if unset?(chat_secret)
-          raise Error.public("CHAT_SECRET_REQUIRED", "Set ROOTCAUSE_CHAT_SECRET to the project's chat signing secret.")
+          raise Error.public("CHAT_SECRET_REQUIRED", "Set REPLYPEN_CHAT_SECRET to the project's chat signing secret.")
         end
         if unset?(chat_project)
-          raise Error.public("CHAT_PROJECT_REQUIRED", "Set ROOTCAUSE_CHAT_PROJECT to the public ReplyPen project slug.")
+          raise Error.public("CHAT_PROJECT_REQUIRED", "Set REPLYPEN_CHAT_PROJECT to the public ReplyPen project slug.")
         end
         # The two secrets are different privilege boundaries; the same value in both means one of the
         # two ENV vars is pointed at the wrong secret.
         if reverse_secrets.include?(chat_secret.to_s)
           raise Error.public(
             "CHAT_SECRET_REUSED",
-            "Use different values for ROOTCAUSE_CHAT_SECRET and ROOTCAUSE_ACTION_SECRET."
+            "Use different values for REPLYPEN_CHAT_SECRET and REPLYPEN_ACTION_SECRET."
           )
         end
         Chat.normalize_base_url(chat_base_url)
@@ -348,7 +348,7 @@ module RootCause
         elsif unset?(secret)
           raise Error.public(
             "ACTION_SECRET_REQUIRED",
-            "Set ROOTCAUSE_ACTION_SECRET, or a secrets map, before enabling actions or analysis."
+            "Set REPLYPEN_ACTION_SECRET, or a secrets map, before enabling actions or analysis."
           )
         end
       end

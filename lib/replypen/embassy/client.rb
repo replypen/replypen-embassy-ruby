@@ -6,11 +6,11 @@ require "json"
 require "time"
 require "securerandom"
 
-module RootCause
+module ReplyPen
   module Embassy
     # The outbound trigger — the opposite direction of the invocation flow, on the
     # SAME reverse-channel secret (no new crypto, no new secret). `start_analysis`
-    # builds the documented body, signs the RAW JSON, POSTs it to the rootcause
+    # builds the documented body, signs the RAW JSON, POSTs it to the ReplyPen
     # host, and returns the run's `analysis_id` for the caller to persist alongside
     # its own resource (correlation is by that id + the echoed `metadata`).
     #
@@ -18,7 +18,7 @@ module RootCause
     # response / transport failure raises TriggerError; an over-cap or malformed
     # attachment raises ArgumentError before anything is sent.
     class Client
-      # What start_analysis returns: the rootcause run id (for audit / idempotency /
+      # What start_analysis returns: the ReplyPen run id (for audit / idempotency /
       # correlation), the host-managed conversation `session_id` (opaque — store and
       # forward on the next turn, never interpret), and the host's queue status.
       Analysis = Struct.new(:analysis_id, :session_id, :status, keyword_init: true)
@@ -34,7 +34,7 @@ module RootCause
       # @param session_id [String, nil] a prior turn's host-minted session id. When
       #   present, this turn continues that conversation — send ONLY the new
       #   subject/body, never prior history (the host keeps it). Opaque to the gem.
-      # @param tenant [String, nil] optional rootcause tenant slug for tenant-enabled projects.
+      # @param tenant [String, nil] optional ReplyPen tenant slug for tenant-enabled projects.
       # @param principal [Hash, nil] optional identity assertion about WHO this
       #   trigger is on behalf of — `{kind:, external_id:, asserted_by: nil,
       #   assurance: nil, tenant_hint: nil, source_metadata: nil}`. The customer app
@@ -56,7 +56,7 @@ module RootCause
       def start_analysis(subject:, body:, attachments: [], metadata: {}, session_id: nil, tenant: nil, principal: nil, project_id: nil, context_refs: nil)
         url = @config.trigger_url
         if Util.blank?(url)
-          raise Error.public("ANALYSIS_TRIGGER_URL_REQUIRED", "Set ROOTCAUSE_TRIGGER_URL before starting an analysis.")
+          raise Error.public("ANALYSIS_TRIGGER_URL_REQUIRED", "Set REPLYPEN_TRIGGER_URL before starting an analysis.")
         end
 
         metadata ||= {}
@@ -84,7 +84,7 @@ module RootCause
         analysis
       end
 
-      # Fire-and-forget: hand rootcause the actual reply a human agent sent (after
+      # Fire-and-forget: hand ReplyPen the actual reply a human agent sent (after
       # editing the proposed draft), keyed to the same `session_id` as the analysis
       # so the host can learn the proposed-vs-sent delta. Pure outbound POST — no
       # analysis, no result handler. The host re-verifies on the RAW bytes, so the
@@ -95,7 +95,7 @@ module RootCause
       # @param answers [Array<Hash>] answers to a prior result's questions; valid
       #   alone or alongside sent_body
       # @param session_id [String] the same handle passed to start_analysis (required)
-      # @param proposed_body [String, nil] what rootcause proposed; omit if unknown
+      # @param proposed_body [String, nil] what ReplyPen proposed; omit if unknown
       # @param sender [String, nil] who sent it (agent label/name)
       # @param metadata [Hash] correlation — NOT free-form here (unlike the trigger's
       #   metadata): the host strict-decodes exactly `{resource_type, resource_id}`,
@@ -108,7 +108,7 @@ module RootCause
       def capture_sent_message(session_id:, sent_body: nil, proposed_body: nil, sender: nil, metadata: {}, answers: [], project_id: nil)
         url = @config.sent_message_url
         if Util.blank?(url)
-          raise Error.public("SENT_MESSAGE_URL_REQUIRED", "Set ROOTCAUSE_SENT_MESSAGE_URL before capturing a sent message.")
+          raise Error.public("SENT_MESSAGE_URL_REQUIRED", "Set REPLYPEN_SENT_MESSAGE_URL before capturing a sent message.")
         end
         if Util.blank?(session_id)
           raise Error.public("SESSION_ID_REQUIRED", "Set session_id to the ReplyPen session being continued.")
@@ -338,7 +338,7 @@ module RootCause
         return unless @config.logger
 
         @config.logger.info(
-          "[rootcause-sent-message] session_id=#{session_id} " \
+          "[replypen-sent-message] session_id=#{session_id} " \
           "metadata_keys=#{metadata_keys(metadata)} " \
           "sent_bytes=#{sent_body.to_s.bytesize} proposed_bytes=#{proposed_body.to_s.bytesize} " \
           "answers=#{answers_count}"
@@ -346,12 +346,12 @@ module RootCause
       end
 
       # Customer-side audit: the run id, metadata KEYS only (never values — they
-      # transit rootcause), and the attachment count. Never the secret.
+      # transit ReplyPen), and the attachment count. Never the secret.
       def log(analysis, metadata, attachment_count)
         return unless @config.logger
 
         @config.logger.info(
-          "[rootcause-trigger] analysis_id=#{analysis.analysis_id} " \
+          "[replypen-trigger] analysis_id=#{analysis.analysis_id} " \
           "metadata_keys=#{metadata_keys(metadata)} attachments=#{attachment_count}"
         )
       end

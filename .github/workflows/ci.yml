@@ -18,13 +18,17 @@ jobs:
       - name: Lint and test
         run: bundle exec rake
 
+      # Installed Gemfiles still name `rootcause-embassy`; both gem names must build from this checkout.
+      - name: Build both gem names
+        run: gem build replypen-embassy.gemspec && gem build rootcause-embassy.gemspec
+
       # The vendored goldens must be the hub's bytes, not a local edit. A wire
       # change starts in the hub; this is what makes "vendored" mean something.
       - name: Fixture parity with the contract hub
         run: |
           set -euo pipefail
           hub_sha="$(cat spec/fixtures/contract/HUB_SHA)"
-          git clone --quiet https://github.com/rootcause-org/rootcause-embassy hub
+          git clone --quiet https://github.com/replypen/replypen-embassy hub
           git -C hub checkout --quiet "$hub_sha"
           diff -r hub/fixtures spec/fixtures/contract --exclude HUB_SHA
 

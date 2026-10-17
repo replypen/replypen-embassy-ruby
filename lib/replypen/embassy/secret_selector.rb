@@ -3,7 +3,7 @@
 require "json"
 require "uri"
 
-module RootCause
+module ReplyPen
   module Embassy
     # Selects a map-mode candidate from untrusted transport data. This never
     # authenticates a project id; the caller verifies the exact raw bytes next.

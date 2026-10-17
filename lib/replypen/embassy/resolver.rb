@@ -6,7 +6,7 @@ require "json"
 require "digest"
 require "fileutils"
 
-module RootCause
+module ReplyPen
   module Embassy
     # Resolve an action's script body by digest. The digest is the authorization
     # unit: a body runs IFF sha256(body) equals the digest in the signed
@@ -15,7 +15,7 @@ module RootCause
     # and self-verifying: a tampered or stale cache entry simply fails the hash
     # check and is re-fetched.
     #
-    # Lookup order: process memory → disk → fetch from the rootcause host. In a
+    # Lookup order: process memory → disk → fetch from the ReplyPen host. In a
     # reverse-secret map deployment the cache is project-partitioned: host fetch
     # is also the project authorization check, so a sibling must not reuse a
     # digest merely because another project warmed it first.

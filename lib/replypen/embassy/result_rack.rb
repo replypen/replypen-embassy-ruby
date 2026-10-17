@@ -3,7 +3,7 @@
 require "json"
 require "timeout"
 
-module RootCause
+module ReplyPen
   module Embassy
     # Framework-agnostic core of the result route: verify → replay → dispatch →
     # signed ack, fail-closed at every step — the inbound mirror of Runner for the
@@ -40,7 +40,7 @@ module RootCause
       rescue => e
         # Fail-closed backstop. A handler exception or any unforeseen condition is a
         # signed, structured 500 — never an unsigned crash, and deliberately NOT an
-        # ack: the nonce is released above, so rootcause's redelivery dispatches
+        # ack: the nonce is released above, so ReplyPen's redelivery dispatches
         # again — which is exactly why ResultHandler#process is documented idempotent.
         log_unexpected(e)
         internal_error_reply(e, secret)
@@ -52,7 +52,7 @@ module RootCause
       def parse(raw_body) = parse_required(raw_body, noun: "result")
 
       # Freshness on the RESULT route is deliberately asymmetric with the invocation
-      # route: rootcause sends `nonce = run_id`, stable across redeliveries of the
+      # route: ReplyPen sends `nonce = run_id`, stable across redeliveries of the
       # same result, precisely so the Embassy dedupes. A duplicate is therefore a
       # redelivery to ack (see ack_duplicate), never a refusal. A stale `issued_at`
       # still raises ReplayError → 409: that one bounds how long a captured body
@@ -70,7 +70,7 @@ module RootCause
       # handler, so re-dispatching would double-process. Ack it exactly like the
       # first — same signed 200 — so the host stops retrying.
       def ack_duplicate(payload, secret)
-        @config.logger&.info("[rootcause-result] duplicate analysis_id=#{payload["analysis_id"]} acked (redelivery)")
+        @config.logger&.info("[replypen-result] duplicate analysis_id=#{payload["analysis_id"]} acked (redelivery)")
         reply(200, {ok: true}, secret)
       end
 
@@ -113,22 +113,22 @@ module RootCause
       end
 
       # Customer-side audit: the run id, metadata KEYS only (never values — they
-      # transit rootcause), and ok/decline. Never the secret.
+      # transit ReplyPen), and ok/decline. Never the secret.
       def log(result)
         return unless @config.logger
 
         @config.logger.info(
-          "[rootcause-result] analysis_id=#{result.analysis_id} " \
+          "[replypen-result] analysis_id=#{result.analysis_id} " \
           "metadata_keys=#{metadata_keys(result.metadata)} ok=#{result.ok?}"
         )
       end
 
       def log_refusal(error)
-        @config.logger&.warn("[rootcause-result] refused code=#{error.code} msg=#{error.message}")
+        @config.logger&.warn("[replypen-result] refused code=#{error.code} msg=#{error.message}")
       end
 
       def log_unexpected(error)
-        @config.logger&.error("[rootcause-result] refused code=internal_error class=#{error.class}")
+        @config.logger&.error("[replypen-result] refused code=internal_error class=#{error.class}")
       end
 
       def metadata_keys(metadata) = metadata.is_a?(Hash) ? metadata.keys.map(&:to_s).sort : []
@@ -137,7 +137,7 @@ module RootCause
     # Thin Rack shell over ResultReceiver — the mirror of RackApp for the result
     # route. Mount it alongside the invocation route:
     #
-    #   mount RootCause::Embassy::ResultRackApp.new => RootCause::Embassy.config.result_mount_at
+    #   mount ReplyPen::Embassy::ResultRackApp.new => ReplyPen::Embassy.config.result_mount_at
     class ResultRackApp
       include RackShell
 
@@ -149,7 +149,7 @@ module RootCause
 
       # Resolve lazily so the app can be constructed at require-time (before the
       # initializer runs) yet still bind to the configured receiver per request.
-      def core = @receiver || RootCause::Embassy.result_receiver
+      def core = @receiver || ReplyPen::Embassy.result_receiver
     end
   end
 end

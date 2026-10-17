@@ -1,21 +1,21 @@
-# rootcause-embassy (the **Embassy**, Ruby)
+# replypen-embassy (the **Embassy**, Ruby)
 
 > Renamed from `rootcause-action-runner` / `RootCause::ActionRunner` (≤ 0.2.0) → `rootcause-embassy`
-> / `RootCause::Embassy` (0.3.0+). Repo: `rootcause-embassy-ruby` (per-language polyrepo; PHP/Node/.NET
-> Embassies are separate `rootcause-embassy-<lang>` repos).
+> / `RootCause::Embassy` (0.3.0–0.14.x) → `replypen-embassy` / `ReplyPen::Embassy` (0.15.0+). Repo: `replypen-embassy-ruby` (per-language polyrepo; PHP/Node/.NET
+> Embassies are separate `replypen-embassy-<lang>` repos).
 
-A **thin Ruby gem** the customer mounts once in their Rails app — the **Embassy**, rootcause's trusted
-in-app presence and the first **action runner** in rootcause's **action plane**. It receives a signed,
-digest-pinned **invocation** from the rootcause host, **resolves the action's script by digest**, runs
+A **thin Ruby gem** the customer mounts once in their Rails app — the **Embassy**, ReplyPen's trusted
+in-app presence and the first **action runner** in ReplyPen's **action plane**. It receives a signed,
+digest-pinned **invocation** from the ReplyPen host, **resolves the action's script by digest**, runs
 it **inline with a hard timeout**, returns a **signed structured result**, and **receives
 async-analysis results** — all using the customer's own env, code, and tooling. No executable code
 ever travels on the wire.
 
 **The authoritative design for this gem is [SPEC.md](SPEC.md). Read it before changing behavior.**
 The cross-language wire contract every Embassy implements is
-[`rootcause-embassy/CONTRACT.md`](https://github.com/rootcause-org/rootcause-embassy/blob/main/CONTRACT.md) (with `decisions.md` and
+[`replypen-embassy/CONTRACT.md`](https://github.com/replypen/replypen-embassy/blob/main/CONTRACT.md) (with `decisions.md` and
 `docs/integrator/`) — read it before changing anything that crosses the wire, and keep the Go port
-(`rootcause-embassy-go`) at DX parity.
+(`replypen-embassy-go`) at DX parity.
 
 ## Stage
 
@@ -27,7 +27,7 @@ integrator can observe.
 
 **We do:** verify a signed invocation (HMAC-SHA256 over raw body, constant-time) → replay-guard
 (±5 min window + unseen nonce) → validate params against the carried schema → **resolve the script by
-digest** (cache hit if `sha256 == digest`, else fetch from rootcause and verify before running) →
+digest** (cache hit if `sha256 == digest`, else fetch from ReplyPen and verify before running) →
 execute inline with a hard timeout, params bound **as data** → return signed structured JSON
 (`{ ok, return_value | error, stdout?, duration_ms }`) → log customer-side.
 
@@ -38,20 +38,20 @@ execute inline with a hard timeout, params bound **as data** → return signed s
   digest-pinned scripts, signature + replay, params-as-data, audit. Real isolation is a later swap.
 - **No registry / approval logic** — that is the host's. The gem only verifies and runs.
 - **No async / job queue / callbacks of its own** — inline and synchronous.
-- **No sending email** — the human-reviewed draft is rootcause's concern.
+- **No sending email** — the human-reviewed draft is ReplyPen's concern.
 - **No non-Ruby runners, no large-output/download URLs.** (`dry_run` IS implemented — it runs the
   full verify→replay→schema→resolve pipeline and skips only execution.)
 
-## Taxonomy (shared verbatim with rootcause / ReplyPen)
+## Taxonomy (shared verbatim with the ReplyPen host)
 
 One word per concept. Use the **bold** term in code, comments, docs, commits, tests; aliases banned.
 
 | Term | Is | Not (banned) |
 |---|---|---|
-| **action** | A vetted, versioned *script* in rootcause's registry, identified by content **digest** — the capability we run on the customer's own prod app. **Distinct from `tool`** (never call it that). | ~~effect~~, ~~command~~, ~~macro~~ |
+| **action** | A vetted, versioned *script* in ReplyPen's registry, identified by content **digest** — the capability we run on the customer's own prod app. **Distinct from `tool`** (never call it that). | ~~effect~~, ~~command~~, ~~macro~~ |
 | **action runner** | This gem — the customer-side component that **resolves an action by digest**, executes it with a hard timeout, returns a structured result. Contract is language-agnostic; Ruby is first. | ~~plugin~~, ~~agent~~ |
 | **action run** | One proposed/executed invocation of an action for a thread (`proposed → executing → succeeded`/`failed`). Audited host-side in `action_runs`. | ~~invocation~~ (that's the wire message), ~~call~~ |
-| **invocation** | The signed wire message rootcause POSTs to the gem: `action_id + params + script_digest + schema + nonce + issued_at`. **No script body.** | — |
+| **invocation** | The signed wire message ReplyPen POSTs to the gem: `action_id + params + script_digest + schema + nonce + issued_at`. **No script body.** | — |
 | **digest** | `sha256(script.rb)` — the action's pinned identity and the **authorization unit**. The gem runs a body iff its hash equals the digest in the invocation. | ~~hash~~ (in prose ok, but `digest` in code) |
 | **reverse-channel secret** | The per-project HMAC secret for this channel — **distinct** from the email `webhook_secret`. Held in KMS host-side; the gem holds its copy via `ENV`. | ~~webhook_secret~~ |
 
@@ -89,6 +89,18 @@ One word per concept. Use the **bold** term in code, comments, docs, commits, te
 - **Code comments: high signal-to-noise.** Explain *why* — intent, invariants, gotchas. No changelog
   narration; git log is the source of truth.
 - **Diagrams: always Mermaid, never ASCII art.**
+
+## Legacy names kept
+
+ReplyPen was codenamed rootcause (hub decision 27). Kept on purpose — installed apps depend on them:
+
+- `rootcause-embassy.gemspec` — Gemfiles pin `gem "rootcause-embassy", github: …`; same files, loads the replypen gemspec.
+- `lib/rootcause-embassy.rb`, `lib/rootcause/embassy.rb` — Bundler.require and explicit requires by the old name.
+- `RootCause = ReplyPen` (end of `lib/replypen/embassy.rb`) — initializers, routes, subclasses, rescues say `RootCause::Embassy`.
+- `/rootcause/action`, `/rootcause/result`, `cache_dir` `tmp/rootcause/actions` defaults — wire/host-stored URLs, customer routes.
+- `rootcause-action(<digest>)` eval filename — hub golden `result_action_error.json`.
+- `ROOTCAUSE_*` env names in deployed initializers — the gem reads no env (an env fallback in `configure` would arm half-configured planes and break boot on existing deploys), so this is the customer's naming; docs show `REPLYPEN_*`.
+- `data-rc-*` attributes, `RC_*` runtime env, `rcor_`/`rcoa_` token ids — wire contract.
 
 ## Before reporting done
 

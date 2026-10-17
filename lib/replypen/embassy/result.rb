@@ -1,15 +1,15 @@
 # frozen_string_literal: true
 
-module RootCause
+module ReplyPen
   module Embassy
     # The async analysis result handed to the customer's ResultHandler. Field names
-    # are taken VERBATIM from rootcause's webhook.CallbackPayload and ReplyPen's
+    # are taken VERBATIM from the host's webhook.CallbackPayload and ReplyPen's
     # contract so all three products serialize identically. A frozen, symbol-keyed
     # value object — the handler reads a stable, immutable bag.
     #
     # The human-in-the-loop invariant is preserved by the field split:
     # draft / note / attachments / questions are informational (safe to auto-burn
-    # into the customer's records); `actions[]` are vetted side-effects rootcause
+    # into the customer's records); `actions[]` are vetted side-effects ReplyPen
     # PROPOSES — the customer renders them for a human to click, and they ride back
     # through the gem's existing invocation route. The gem never auto-runs them, so
     # no "autonomous action" feature is needed. Each action is a pass-through hash
@@ -40,7 +40,7 @@ module RootCause
     #
     # `draft` and `note` are surfaced as **markdown strings**, not the raw nested
     # nodes: `draft` is the drafted answer's `body_markdown`; `note` is the SUMMARY
-    # note's `body_markdown` (rootcause delivers `notes[]` keyed by `key` — one
+    # note's `body_markdown` (ReplyPen delivers `notes[]` keyed by `key` — one
     # `summary` note plus zero or more other-keyed notes, e.g. a `trace` link note;
     # we surface only the summary). HTML is a fallback only when markdown is absent
     # (the host is migrating notes from `body_html` to `body_markdown`). The run-page

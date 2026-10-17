@@ -1,5 +1,4 @@
 # frozen_string_literal: true
 
-# Gem-name entry point (`require "rootcause-embassy"`). The real code lives
-# under the rootcause/embassy namespace.
-require_relative "rootcause/embassy"
+# Legacy gem-name entry point: Bundler.require for `gem "rootcause-embassy"` requires this.
+require_relative "replypen-embassy"

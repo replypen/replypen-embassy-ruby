@@ -3,4 +3,4 @@
 source "https://rubygems.org"
 
 # Depend on the gemspec; dev deps live there too.
-gemspec
+gemspec name: "replypen-embassy"

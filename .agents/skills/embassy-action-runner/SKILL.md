@@ -1,16 +1,16 @@
 ---
 name: embassy-action-runner
-description: Maintain the rootcause Ruby Embassy's signed boundaries — the inbound action invocation route, the inbound analysis-result route, and the outbound trigger/sent-message/API calls. Use when changing wire fields, HMAC/replay handling, schema validation, digest resolution, trusted tenant context, script execution, timeouts/deadlines, the Result surface, or host wire-contract compatibility in rootcause-embassy-ruby.
+description: Maintain the ReplyPen Ruby Embassy's signed boundaries — the inbound action invocation route, the inbound analysis-result route, and the outbound trigger/sent-message/API calls. Use when changing wire fields, HMAC/replay handling, schema validation, digest resolution, trusted tenant context, script execution, timeouts/deadlines, the Result surface, or host wire-contract compatibility in replypen-embassy-ruby.
 ---
 
 # Embassy (Ruby)
 
 Read `AGENTS.md` and `SPEC.md` completely before changing behavior. For anything that crosses the
-wire, the authority is the contract hub `rootcause-embassy`: `CONTRACT.md`, the matching
+wire, the authority is the contract hub `replypen-embassy`: `CONTRACT.md`, the matching
 `planes/*.md`, `decisions.md`, and the case list in `conformance.md`. A wire change starts there,
 never here.
 
-Everything lives under `lib/rootcause/embassy/` (the pre-0.3.0 `lib/rootcause/action_runner/` namespace
+Everything lives under `lib/replypen/embassy/` (the pre-0.3.0 `lib/rootcause/action_runner/` namespace
 is gone). Stdlib only — no runtime dependencies.
 
 Inline action attachments: `inline_attachments.rb` validates the signed parameter-keyed map and
@@ -31,7 +31,7 @@ it can preserve primary work; malformed metadata or limits refuse before executi
 | duplicate nonce | **409 replay** | **idempotent signed `200 {"ok":true}` ack** |
 | stale `issued_at` | 409 | 409 |
 
-The result route's dedupe is the whole point of the asymmetry: rootcause sends a **stable
+The result route's dedupe is the whole point of the asymmetry: ReplyPen sends a **stable
 `nonce = run_id`** across redeliveries of the same result, so a duplicate is a redelivery to ack, not
 an attack to refuse. `Replay.guard!` raises on a seen nonce (invocation); `Replay.fresh?` returns
 `false` instead (result). The receiver consumes the nonce *before* dispatch and **releases** it

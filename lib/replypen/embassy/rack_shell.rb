@@ -2,7 +2,7 @@
 
 require "json"
 
-module RootCause
+module ReplyPen
   module Embassy
     # The Rack half of both mounts, shared verbatim: pull the raw body and the
     # signature header off the request, hand them to the framework-agnostic core,

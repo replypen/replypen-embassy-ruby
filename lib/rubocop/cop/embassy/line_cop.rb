@@ -7,7 +7,7 @@ module RuboCop
     module Embassy
       # Base for this repo's house cops. They are deliberately LINE checks, not AST
       # checks: each one guards a single invariant from the contract hub
-      # (rootcause-embassy) that is already stated as a literal in the source — a
+      # (replypen-embassy) that is already stated as a literal in the source — a
       # header name, a wire class, a log key. An AST cop would be more machinery
       # than the invariant is worth, and these must stay cheap enough that nobody
       # is tempted to delete them.

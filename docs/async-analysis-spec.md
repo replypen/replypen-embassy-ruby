@@ -1,13 +1,13 @@
 # Async analysis — customer-initiated trigger + result callback (gem side)
 
 **Status:** proposal (v1). Extends [SPEC.md](../SPEC.md). This is the **gem's slice** of a new
-capability: the customer's app **triggers an analysis** on the rootcause host and later **receives the
+capability: the customer's app **triggers an analysis** on the ReplyPen host and later **receives the
 result** asynchronously into a Ruby handler. The host side (ingest endpoint, run lifecycle, result
 delivery) lives in
-[`rootcause-embassy/CONTRACT.md`](https://github.com/rootcause-org/rootcause-embassy/blob/main/CONTRACT.md)
+[`replypen-embassy/CONTRACT.md`](https://github.com/replypen/replypen-embassy/blob/main/CONTRACT.md)
 — read it for everything off-gem.
 
-**Session continuation (host-managed).** rootcause keeps the conversation history server-side, keyed by
+**Session continuation (host-managed).** ReplyPen keeps the conversation history server-side, keyed by
 an opaque **`session_id`**. The first `start_analysis` omits it; the host mints one and returns it in the
 202. A follow-up passes that `session_id` back and sends **only the new message** — never prior turns,
 which the host already holds. The gem treats `session_id` as **opaque**: it stores and forwards the
@@ -17,25 +17,25 @@ and the per-analysis `analysis_id`; continuation is by `session_id`.
 
 ## 1. Why this exists
 
-Today the gem is a pure **receiver**: rootcause POSTs a signed **invocation**, the gem resolves the
+Today the gem is a pure **receiver**: ReplyPen POSTs a signed **invocation**, the gem resolves the
 script by digest, runs it, returns a signed result (SPEC §3). That stays exactly as-is.
 
 This adds the **opposite direction** for a different job: the customer's own code (e.g. a support-ticket
-controller) wants to ask rootcause *"analyze this"* and get the drafted answer back **later**, keyed to
+controller) wants to ask ReplyPen *"analyze this"* and get the drafted answer back **later**, keyed to
 one of its own resources — without polling and without standing up a job/callback rig of its own.
 
 Two new motions, both on the existing **reverse-channel secret** (the same secret the gem already holds
 for invocations — no new secret):
 
-- **Analysis trigger** — gem → rootcause, a signed POST that opens an analysis. Returns immediately.
-- **Analysis result** — rootcause → gem, a signed POST delivered when the analysis finishes; dispatched
+- **Analysis trigger** — gem → ReplyPen, a signed POST that opens an analysis. Returns immediately.
+- **Analysis result** — ReplyPen → gem, a signed POST delivered when the analysis finishes; dispatched
   to a customer-written `ResultHandler`.
 
 ```mermaid
 sequenceDiagram
     participant App as Customer Rails app
     participant Gem as gem
-    participant RC as rootcause host
+    participant RC as ReplyPen host
     App->>Gem: start_analysis(subject:, body:, metadata:, session_id: nil)
     Gem->>RC: signed trigger (reverse-channel secret)
     RC-->>Gem: 202 { analysis_id, session_id }   (host mints session_id on turn 1)
@@ -60,11 +60,11 @@ does. We do **not** add autonomous actions.
 Config additions (extends SPEC §4):
 
 ```ruby
-RootCause::Embassy.configure do |c|
-  c.secret          = ENV.fetch("ROOTCAUSE_ACTION_SECRET") # SAME reverse-channel secret as invocations
+ReplyPen::Embassy.configure do |c|
+  c.secret          = ENV.fetch("REPLYPEN_ACTION_SECRET") # SAME reverse-channel secret as invocations
   c.mount_at        = "/rootcause/action"                  # invocation route (unchanged)
   # --- new ---
-  c.trigger_url     = "https://<rootcause>/analyses/<project>" # where start_analysis POSTs
+  c.trigger_url     = "https://<replypen>/analyses/<project>" # where start_analysis POSTs
   c.result_mount_at = "/rootcause/result"                  # route that receives async results
   c.result_handler  = "AnalysisResultHandler"              # String → lazy-loaded, reload-safe
   c.max_attachment_bytes = 256 * 1024                      # per-attachment inline cap (decoded)
@@ -78,7 +78,7 @@ the client uses it only to select the local signing key.
 **Trigger** — call from anywhere in app code:
 
 ```ruby
-analysis = RootCause::Embassy.start_analysis(
+analysis = ReplyPen::Embassy.start_analysis(
   subject: ticket.subject,
   body:    ticket.body,                       # plain text only (v1)
   attachments: [
@@ -89,7 +89,7 @@ analysis = RootCause::Embassy.start_analysis(
   session_id: nil,                            # optional — omit/nil on the first turn (§2.1)
   project_id: "11111111-1111-1111-1111-111111111111", # required only with c.secrets
 )
-analysis.analysis_id  # => "uuid"  (rootcause run id, for audit/idempotency/correlation)
+analysis.analysis_id  # => "uuid"  (ReplyPen run id, for audit/idempotency/correlation)
 analysis.session_id   # => "uuid"  (host-minted; persist it to continue this conversation)
 ```
 
@@ -99,7 +99,7 @@ analysis.session_id   # => "uuid"  (host-minted; persist it to continue this con
 # app/jobs/analyze_ticket_job.rb
 class AnalyzeTicketJob < ApplicationJob
   def perform(ticket)
-    analysis = RootCause::Embassy.start_analysis(
+    analysis = ReplyPen::Embassy.start_analysis(
       subject:    ticket.subject,
       body:       ticket.body,                                       # plain text only (v1)
       metadata:   {resource_type: "SupportTicket", resource_id: ticket.id},
@@ -118,10 +118,10 @@ end
 `result.note` are **markdown strings** (§2.2) — write them straight into the record:
 
 ```ruby
-# app/rootcause/analysis_result_handler.rb
-class AnalysisResultHandler < RootCause::Embassy::ResultHandler
+# app/replypen/analysis_result_handler.rb
+class AnalysisResultHandler < ReplyPen::Embassy::ResultHandler
   # Runs inline in the result request, under the configured timeout. Keep it a quick write.
-  # MUST be idempotent: rootcause redelivers on a lost ack (see §6).
+  # MUST be idempotent: ReplyPen redelivers on a lost ack (see §6).
   def process(result)
     return unless result.metadata[:resource_type] == "SupportTicket"
     ticket = SupportTicket.find_by(id: result.metadata[:resource_id])
@@ -143,7 +143,7 @@ class AnalysisResultHandler < RootCause::Embassy::ResultHandler
 end
 ```
 
-### The `Result` object (mirrors rootcause's `CallbackPayload`)
+### The `Result` object (mirrors ReplyPen's `CallbackPayload`)
 
 ```ruby
 result.analysis_id     # String   — the run id this answers
@@ -160,7 +160,7 @@ result.decline          # { reason: } or nil
 result.ok?              # decline.nil?
 ```
 
-Field names are taken **verbatim** from rootcause's `webhook.CallbackPayload` and ReplyPen's contract so
+Field names are taken **verbatim** from ReplyPen's `webhook.CallbackPayload` and ReplyPen's contract so
 all three products serialize identically.
 
 ### 2.2 `draft` and `note` are markdown
@@ -169,10 +169,10 @@ The result delivers a `draft` node and a `notes[]` array. The gem surfaces them 
 not raw nodes:
 
 - **`result.draft`** is the draft's `body_markdown`.
-- **`result.note`** is the **summary** note's `body_markdown`. rootcause delivers one summary note
+- **`result.note`** is the **summary** note's `body_markdown`. ReplyPen delivers one summary note
   (`kind: "summary"`) plus zero or more **widget** notes; the gem returns only the summary — it never
   concatenates widget notes. The run-trace is a markdown link **inside** that summary note.
-- **HTML is a fallback only.** rootcause is migrating notes from `body_html` to `body_markdown`; if
+- **HTML is a fallback only.** ReplyPen is migrating notes from `body_html` to `body_markdown`; if
   `body_markdown` is absent the gem falls back to `body_html`. When neither is present → `nil`.
 - If no note is marked `kind: "summary"`, the gem falls back to the first note (so a lone unkinded note
   still surfaces).
@@ -183,7 +183,7 @@ A follow-up is the **same call** with the persisted `session_id` and **only the 
 already holds the prior turns, so the gem never re-sends them:
 
 ```ruby
-RootCause::Embassy.start_analysis(
+ReplyPen::Embassy.start_analysis(
   subject:    "Still failing after the reset",
   body:       customer_reply,                  # just the new message, no prior history
   session_id: ticket.rc_session_id,            # the id you persisted from turn 1 / the result
@@ -204,7 +204,7 @@ Rules:
 Both messages use the existing scheme: `X-Webhook-Signature: sha256=<hex>` (HMAC-SHA256 over the **raw**
 body), constant-time compare, sign-then-send / verify-on-raw — identical to SPEC §5.
 
-**Analysis trigger** (gem → rootcause), `POST {trigger_url}` — signed:
+**Analysis trigger** (gem → ReplyPen), `POST {trigger_url}` — signed:
 
 ```jsonc
 {
@@ -230,13 +230,13 @@ any that are nil; `kind` + `external_id` are required together (a partial assert
 claims and would silently degrade to tenant-only scope, so the gem raises `ArgumentError` before the
 POST). It is dormant unless the project declares `scope_claims`. Assert it from the customer app's own
 authenticated session — **never from model output** or anything the end user controls. The result
-direction (rootcause → gem) is tolerant-inbound: unknown fields are ignored, not refused.
+direction (ReplyPen → gem) is tolerant-inbound: unknown fields are ignored, not refused.
 
 Response `202`: `{ "analysis_id": "uuid", "session_id": "uuid", "status": "queued" }`. The host **mints**
 `session_id` on the first turn and **echoes** the same one on follow-ups; the gem surfaces it as
 `analysis.session_id`.
 
-**Analysis result** (rootcause → gem), `POST {result_mount_at}` — signed; the body carries the raw
+**Analysis result** (ReplyPen → gem), `POST {result_mount_at}` — signed; the body carries the raw
 `CallbackPayload` (the wire shape, *before* the gem flattens it to the `Result` accessors in §2.1/§2.2)
 plus `analysis_id`, `session_id`, `nonce`, `issued_at`:
 
@@ -270,9 +270,9 @@ The split that keeps the SPEC §1 invariant intact:
 
 - **`draft` / `note` / `attachments` / `questions`** — informational analysis output → safe to
   **auto-burn** into the customer's records. No gate.
-- **`actions[]`** — vetted side-effects rootcause *proposes*. Each is a
-  `{ label, description, url, resource_url? }`; `url` points at rootcause's single-use, expiring
-  confirm page. The customer **renders** them (a human clicks) → rootcause executes via the gem's
+- **`actions[]`** — vetted side-effects ReplyPen *proposes*. Each is a
+  `{ label, description, url, resource_url? }`; `url` points at ReplyPen's single-use, expiring
+  confirm page. The customer **renders** them (a human clicks) → ReplyPen executes via the gem's
   **existing invocation route**. The gem never auto-runs them. The optional `resource_url` is an
   absolute link to the record in the customer's *own* admin UI — a render-only inspect link beside the
   confirm button, never a confirm target.
@@ -286,7 +286,7 @@ So one result can both fill a draft *and* surface approve-buttons, cleanly separ
 
 ## 5. Idempotency & fail-closed
 
-- **Result redelivery is when-not-if, and the route is idempotent.** rootcause sends a **stable
+- **Result redelivery is when-not-if, and the route is idempotent.** ReplyPen sends a **stable
   `nonce` (the run id)** on every redelivery of the same result — deliberately, so the Embassy dedupes.
   A duplicate nonce inside the window is therefore acked with the same signed `200 {"ok":true}` and is
   **not** dispatched twice; it is *not* a 409. (The **invocation** route keeps full replay semantics: a
@@ -298,7 +298,7 @@ So one result can both fill a draft *and* surface approve-buttons, cleanly separ
   idempotent** — upsert by `analysis_id` (or `metadata`), never blind-insert.
 - **Fail closed** (mirrors SPEC §3): bad signature, stale nonce, missing required fields,
   unconfigured `result_handler` → refuse, signed structured error, log it.
-- **Trigger failures** (`start_analysis`): non-2xx / timeout → raise a `RootCause::Embassy::TriggerError`;
+- **Trigger failures** (`start_analysis`): non-2xx / timeout → raise a `ReplyPen::Embassy::TriggerError`;
   the caller decides whether to retry (the call is the customer's, so no silent swallow).
 
 ## 6. Attachments (v1 constraints)
@@ -314,17 +314,17 @@ So one result can both fill a draft *and* surface approve-buttons, cleanly separ
 
 - **Same secret, same primitives.** Reverse-channel HMAC, constant-time, verify-on-raw, replay window —
   no new crypto, no new secret.
-- **`metadata` transits rootcause and returns** → scalars only, kept small, **no secrets/PII**. We log
+- **`metadata` transits ReplyPen and returns** → scalars only, kept small, **no secrets/PII**. We log
   metadata **keys** only (like param keys), never values.
 - **Result handler runs as the app** with full privileges, like the executor. Keep it a fast, idempotent
   write; offloading to a job reintroduces the infra this feature exists to avoid.
-- The result route should be restricted to rootcause's egress IP at the edge, same recommendation as the
+- The result route should be restricted to ReplyPen's egress IP at the edge, same recommendation as the
   invocation route (SPEC §4).
 
 ## 8. Layout (new files)
 
 ```
-lib/rootcause/embassy/
+lib/replypen/embassy/
 ├── client.rb          # start_analysis: build → sign → POST → parse {analysis_id, session_id}
 ├── result.rb          # Result value object (symbol-keyed, frozen)
 ├── result_handler.rb  # base class; #process(result)
@@ -345,7 +345,7 @@ duplicated.
 | **Session continuation** | `session_id` present → forwarded in the trigger body; absent/blank → omitted; result exposes `session_id`; full round-trip (trigger → `result.session_id` → follow-up trigger carries it). |
 | **Handler config** | string-named handler lazy-loads; missing handler → fail closed, structured error. |
 
-Stub the rootcause origin (trigger 202 + result POST) so the suite needs no live host.
+Stub the ReplyPen origin (trigger 202 + result POST) so the suite needs no live host.
 
 ## 10. Open questions
 

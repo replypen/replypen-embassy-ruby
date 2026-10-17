@@ -17,7 +17,7 @@ RSpec.describe "hub contract conformance" do
 
   it "records and prints the vendored hub revision" do
     hub_sha = File.read(File.join(fixture_dir, "HUB_SHA")).strip
-    warn "rootcause-embassy hub fixtures: #{hub_sha}"
+    warn "replypen-embassy hub fixtures: #{hub_sha}"
     expect(hub_sha).to match(/\A[0-9a-f]{40}\z/)
   end
 
@@ -26,8 +26,8 @@ RSpec.describe "hub contract conformance" do
       bytes = fixture(vector.fetch("file"))
       expect(bytes.bytesize).to eq(vector.fetch("body_bytes")), vector.fetch("name")
       expect(Digest::SHA256.hexdigest(bytes)).to eq(vector.fetch("body_sha256")), vector.fetch("name")
-      expect(RootCause::Embassy::Signature.sign(bytes, secret: vector.fetch("secret"))).to eq(vector.fetch("signature")), vector.fetch("name")
-      expect(RootCause::Embassy::Signature.valid?(vector.fetch("signature"), bytes, secret: vector.fetch("secret"))).to be(true), vector.fetch("name")
+      expect(ReplyPen::Embassy::Signature.sign(bytes, secret: vector.fetch("secret"))).to eq(vector.fetch("signature")), vector.fetch("name")
+      expect(ReplyPen::Embassy::Signature.valid?(vector.fetch("signature"), bytes, secret: vector.fetch("secret"))).to be(true), vector.fetch("name")
     end
   end
 
@@ -35,7 +35,7 @@ RSpec.describe "hub contract conformance" do
     vectors.fetch("query_strings").each do |vector|
       query = fixture(vector.fetch("file"))
       expect(query).to eq(vector.fetch("raw_query")), vector.fetch("name")
-      expect(RootCause::Embassy::Signature.sign(query, secret: vector.fetch("secret"))).to eq(vector.fetch("signature")), vector.fetch("name")
+      expect(ReplyPen::Embassy::Signature.sign(query, secret: vector.fetch("secret"))).to eq(vector.fetch("signature")), vector.fetch("name")
     end
   end
 
@@ -44,7 +44,7 @@ RSpec.describe "hub contract conformance" do
     tenant = JSON.parse(fixture("actions/invocation_tenant.json"))
     principal = JSON.parse(fixture("actions/invocation_principal.json")).fetch("principal")
     callback = JSON.parse(fixture("analysis/result_callback.json"))
-    result = RootCause::Embassy::Result.from_payload(callback)
+    result = ReplyPen::Embassy::Result.from_payload(callback)
 
     expect(flat.fetch("project_id")).to match(/\A[0-9a-f-]{36}\z/)
     expect(flat).not_to have_key("dry_run")
@@ -67,9 +67,9 @@ RSpec.describe "hub contract conformance" do
 
   it "materializes the signed attachment golden without flattening parameter names" do
     invocation = JSON.parse(fixture("actions/invocation_attachments.json"))
-    map = RootCause::Embassy::InlineAttachments.validate!(invocation)
+    map = ReplyPen::Embassy::InlineAttachments.validate!(invocation)
     paths = []
-    RootCause::Embassy::InlineAttachments.with_materialized(map) do |materialized|
+    ReplyPen::Embassy::InlineAttachments.with_materialized(map) do |materialized|
       files = materialized.fetch("attachments")
       expect(File.binread(files.first.fetch("path"))).to eq("hello")
       expect(files.first).to include("mime_type" => "text/plain", "size_bytes" => 5)
@@ -91,19 +91,19 @@ RSpec.describe "hub contract conformance" do
       expect(JSON.parse(body).dig("error", "class")).to eq(code)
       expect(status).to be_between(400, 599)
       vector = vectors.fetch("bodies").find { |entry| entry.fetch("file") == "actions/result_refusal_#{code}.json" }
-      expect(RootCause::Embassy::Signature.valid?(vector.fetch("signature"), body, secret: reverse_secret)).to be(true)
+      expect(ReplyPen::Embassy::Signature.valid?(vector.fetch("signature"), body, secret: reverse_secret)).to be(true)
     end
   end
 
   it "adds stable diagnostics to every Ruby refusal without changing its wire class" do
     {
-      RootCause::Embassy::InvalidRequest => [400, "invalid_request", "INVALID_REQUEST"],
-      RootCause::Embassy::SignatureError => [401, "bad_signature", "BAD_SIGNATURE"],
-      RootCause::Embassy::ReplayError => [409, "replay", "REPLAY"],
-      RootCause::Embassy::SchemaError => [422, "schema_violation", "SCHEMA_VIOLATION"],
-      RootCause::Embassy::ResolveError => [502, "resolve_failed", "RESOLVE_FAILED"],
-      RootCause::Embassy::HandlerError => [500, "handler_error", "HANDLER_ERROR"],
-      RootCause::Embassy::InternalError => [500, "internal_error", "INTERNAL_ERROR"]
+      ReplyPen::Embassy::InvalidRequest => [400, "invalid_request", "INVALID_REQUEST"],
+      ReplyPen::Embassy::SignatureError => [401, "bad_signature", "BAD_SIGNATURE"],
+      ReplyPen::Embassy::ReplayError => [409, "replay", "REPLAY"],
+      ReplyPen::Embassy::SchemaError => [422, "schema_violation", "SCHEMA_VIOLATION"],
+      ReplyPen::Embassy::ResolveError => [502, "resolve_failed", "RESOLVE_FAILED"],
+      ReplyPen::Embassy::HandlerError => [500, "handler_error", "HANDLER_ERROR"],
+      ReplyPen::Embassy::InternalError => [500, "internal_error", "INTERNAL_ERROR"]
     }.each do |klass, (status, wire_class, code)|
       error = klass.new("detail")
       expect(error.status).to eq(status)
@@ -117,7 +117,7 @@ RSpec.describe "hub contract conformance" do
     error = JSON.parse(fixture("actions/result_action_error.json")).fetch("error")
     expect(error.fetch("backtrace")).to be_a(String)
 
-    produced = RootCause::Embassy::Executor.new(Wire.config).run(
+    produced = ReplyPen::Embassy::Executor.new(Wire.config).run(
       script: "raise ArgumentError, 'boom'", params: {}, digest: Wire.digest_of("raise ArgumentError, 'boom'")
     )
     expect(produced.error[:class]).to eq("ArgumentError")
@@ -143,7 +143,7 @@ RSpec.describe "hub contract conformance" do
     let(:contract_clock) { Time.utc(2026, 6, 20) }
     let(:contract_script) { "{ found: true, email: params[:email] }" }
     let(:config) { Wire.config(secret: reverse_secret) }
-    let(:runner) { RootCause::Embassy::Runner.new(config) }
+    let(:runner) { ReplyPen::Embassy::Runner.new(config) }
 
     before { allow(Time).to receive(:now).and_return(contract_clock) }
 
@@ -151,16 +151,16 @@ RSpec.describe "hub contract conformance" do
     # path runs against the golden rather than a locally built body.
     def stub_contract_fetch
       body = fixture("actions/fetch_response.json")
-      WebMock.stub_request(:get, /rootcause\.test/).to_return(
+      WebMock.stub_request(:get, /replypen\.test/).to_return(
         status: 200,
         body: body,
-        headers: {RootCause::Embassy::Signature::HEADER => RootCause::Embassy::Signature.sign(body, secret: reverse_secret)}
+        headers: {ReplyPen::Embassy::Signature::HEADER => ReplyPen::Embassy::Signature.sign(body, secret: reverse_secret)}
       )
     end
 
     def invoke(fixture_name)
       raw = fixture(fixture_name)
-      runner.handle(raw_body: raw, signature: RootCause::Embassy::Signature.sign(raw, secret: reverse_secret))
+      runner.handle(raw_body: raw, signature: ReplyPen::Embassy::Signature.sign(raw, secret: reverse_secret))
     end
 
     # duration_ms is wall-clock and never reproducible; everything else must match.
@@ -172,7 +172,7 @@ RSpec.describe "hub contract conformance" do
 
       expect(reply.status).to eq(200)
       expect(normalize_duration(reply.body)).to eq(normalize_duration(utf8_fixture("actions/result_ok.json")))
-      expect(RootCause::Embassy::Signature.valid?(reply.signature, reply.body, secret: reverse_secret)).to be(true)
+      expect(ReplyPen::Embassy::Signature.valid?(reply.signature, reply.body, secret: reverse_secret)).to be(true)
     end
 
     it "emits the dry-run envelope byte-for-byte after performing the signed fetch" do
@@ -190,8 +190,8 @@ RSpec.describe "hub contract conformance" do
       invoke("actions/invocation_flat.json")
 
       expected_query = utf8_fixture("actions/script_fetch_query.txt")
-      expect(a_request(:get, /rootcause\.test/).with(
-        headers: {RootCause::Embassy::Signature::HEADER => RootCause::Embassy::Signature.sign(expected_query, secret: reverse_secret)}
+      expect(a_request(:get, /replypen\.test/).with(
+        headers: {ReplyPen::Embassy::Signature::HEADER => ReplyPen::Embassy::Signature.sign(expected_query, secret: reverse_secret)}
       )).to have_been_made.once
       requested = WebMock::RequestRegistry.instance.requested_signatures.hash.keys.first.uri
       expect(requested.query_values(Array).map(&:first)).to eq(%w[action_id digest project_id])
@@ -199,26 +199,26 @@ RSpec.describe "hub contract conformance" do
 
     it "emits the health response byte-for-byte once the pinned version is substituted" do
       query = ""
-      reply = runner.health(raw_query: query, signature: RootCause::Embassy::Signature.sign(query, secret: reverse_secret))
+      reply = runner.health(raw_query: query, signature: ReplyPen::Embassy::Signature.sign(query, secret: reverse_secret))
 
-      pinned = utf8_fixture("actions/health_response_attachments.json").sub(/"version":"[^"]+"/, %("version":"#{RootCause::Embassy::VERSION}"))
+      pinned = utf8_fixture("actions/health_response_attachments.json").sub(/"version":"[^"]+"/, %("version":"#{ReplyPen::Embassy::VERSION}"))
       expect(reply.body).to eq(pinned)
-      expect(RootCause::Embassy::Signature.valid?(reply.signature, reply.body, secret: reverse_secret)).to be(true)
+      expect(ReplyPen::Embassy::Signature.valid?(reply.signature, reply.body, secret: reverse_secret)).to be(true)
     end
 
     it "emits the result-route ack byte-for-byte" do
-      receiver = RootCause::Embassy::ResultReceiver.new(Wire.config(secret: reverse_secret, result_handler: Class.new(RootCause::Embassy::ResultHandler) { def process(_result) = nil }))
+      receiver = ReplyPen::Embassy::ResultReceiver.new(Wire.config(secret: reverse_secret, result_handler: Class.new(ReplyPen::Embassy::ResultHandler) { def process(_result) = nil }))
       raw = fixture("analysis/result_callback.json")
-      reply = receiver.handle(raw_body: raw, signature: RootCause::Embassy::Signature.sign(raw, secret: reverse_secret))
+      reply = receiver.handle(raw_body: raw, signature: ReplyPen::Embassy::Signature.sign(raw, secret: reverse_secret))
 
       expect(reply.status).to eq(200)
       expect(reply.body).to eq(utf8_fixture("analysis/result_ack.json"))
-      expect(RootCause::Embassy::Signature.valid?(reply.signature, reply.body, secret: reverse_secret)).to be(true)
+      expect(ReplyPen::Embassy::Signature.valid?(reply.signature, reply.body, secret: reverse_secret)).to be(true)
     end
 
     it "decodes the signed script-fetch response into the digest-verified body" do
       stub_contract_fetch
-      script = RootCause::Embassy::Resolver.new(config).resolve(
+      script = ReplyPen::Embassy::Resolver.new(config).resolve(
         action_id: "devise_send_password_reset",
         digest: JSON.parse(fixture("actions/fetch_response.json")).fetch("digest"),
         project_id: "11111111-1111-1111-1111-111111111111"
@@ -227,7 +227,7 @@ RSpec.describe "hub contract conformance" do
     end
 
     describe "outbound trigger and sent-message bodies" do
-      let(:client) { RootCause::Embassy::Client.new(Wire.config(secret: reverse_secret)) }
+      let(:client) { ReplyPen::Embassy::Client.new(Wire.config(secret: reverse_secret)) }
 
       def transmitted_body
         WebMock::RequestRegistry.instance.requested_signatures.hash.keys.first.body
@@ -238,7 +238,7 @@ RSpec.describe "hub contract conformance" do
       end
 
       def expect_signed_over_transmitted_bytes
-        expect(RootCause::Embassy::Signature.valid?(transmitted_signature, transmitted_body, secret: reverse_secret)).to be(true)
+        expect(ReplyPen::Embassy::Signature.valid?(transmitted_signature, transmitted_body, secret: reverse_secret)).to be(true)
       end
 
       it "emits the minimal trigger byte-for-byte" do
@@ -335,7 +335,7 @@ RSpec.describe "hub contract conformance" do
   # flag was only consulted after the script had already been fetched.
   describe "dry_run is a boolean or absent" do
     let(:config) { Wire.config }
-    let(:runner) { RootCause::Embassy::Runner.new(config) }
+    let(:runner) { ReplyPen::Embassy::Runner.new(config) }
 
     def handle(invocation)
       raw = JSON.generate(invocation)
@@ -368,8 +368,8 @@ RSpec.describe "hub contract conformance" do
   # read ENV while the hub's signed invocation bytes stay untouched.
   describe "action_run_id provenance" do
     let(:probe) { '{ run_id: ENV["RC_ACTION_RUN_ID"], present: ENV.key?("RC_ACTION_RUN_ID") }' }
-    let(:resolver) { instance_double(RootCause::Embassy::Resolver, resolve: probe) }
-    let(:runner) { RootCause::Embassy::Runner.new(Wire.config(secret: reverse_secret), resolver: resolver) }
+    let(:resolver) { instance_double(ReplyPen::Embassy::Resolver, resolve: probe) }
+    let(:runner) { ReplyPen::Embassy::Runner.new(Wire.config(secret: reverse_secret), resolver: resolver) }
 
     before do
       allow(Time).to receive(:now).and_return(Time.utc(2026, 6, 20))
@@ -383,7 +383,7 @@ RSpec.describe "hub contract conformance" do
     end
 
     def invoke_raw(raw)
-      runner.handle(raw_body: raw, signature: RootCause::Embassy::Signature.sign(raw, secret: reverse_secret))
+      runner.handle(raw_body: raw, signature: ReplyPen::Embassy::Signature.sign(raw, secret: reverse_secret))
     end
 
     it "exposes invocation_action_run.json's id only during that invocation" do
@@ -413,7 +413,7 @@ RSpec.describe "hub contract conformance" do
 
           expect(reply.status).to eq(400), value.inspect
           expect(JSON.parse(reply.body).dig("error", "class")).to eq("invalid_request")
-          expect(RootCause::Embassy::Signature.valid?(reply.signature, reply.body, secret: reverse_secret)).to be(true)
+          expect(ReplyPen::Embassy::Signature.valid?(reply.signature, reply.body, secret: reverse_secret)).to be(true)
         end
       end
       expect(resolver).not_to have_received(:resolve)
@@ -431,7 +431,7 @@ RSpec.describe "hub contract conformance" do
   # silently rather than costing the reviewer the whole analysis result.
   describe "proposed action resource_url" do
     def result_with(actions)
-      RootCause::Embassy::Result.from_payload("analysis_id" => "r", "actions" => actions)
+      ReplyPen::Embassy::Result.from_payload("analysis_id" => "r", "actions" => actions)
     end
 
     it "keeps an absolute https link and drops a non-http(s) one" do
@@ -449,41 +449,63 @@ RSpec.describe "hub contract conformance" do
 
     it "never carries resource_url on an executed action" do
       callback = JSON.parse(fixture("analysis/result_callback.json"))
-      result = RootCause::Embassy::Result.from_payload(callback)
+      result = ReplyPen::Embassy::Result.from_payload(callback)
 
       expect(result.executed_actions).not_to be_empty
       result.executed_actions.each { |executed| expect(executed).not_to have_key(:resource_url) }
     end
   end
 
-  it "replays the chat JWT vector byte-for-byte" do
-    jwt = JSON.parse(fixture("chat/jwt_vector.json"))
+  # The *_replypen vectors are what we mint; the legacy rootcause:chat: twins stay replayable so the
+  # HS256 primitive is proven against both auds the host accepts.
+  %w[jwt_vector.json jwt_vector_credentials.json jwt_vector_replypen.json jwt_vector_credentials_replypen.json]
+    .each do |name|
+      it "replays the chat JWT vector #{name} byte-for-byte" do
+        jwt = JSON.parse(fixture("chat/#{name}"))
+        claims = JSON.parse(jwt.fetch("claims_json"))
+        chat = ReplyPen::Embassy::Chat
+        signing_input = "#{chat.b64(jwt.fetch("header_json"))}.#{chat.b64(jwt.fetch("claims_json"))}"
+        expect(signing_input).to eq(jwt.fetch("signing_input"))
+        expect(chat.encode(claims, jwt.fetch("secret"))).to eq(jwt.fetch("token"))
+      end
+    end
+
+  def mint_vector(jwt, &)
     claims = JSON.parse(jwt.fetch("claims_json"))
-    expect(RootCause::Embassy::Chat.encode(claims, jwt.fetch("secret"))).to eq(jwt.fetch("token"))
-    expect(jwt.fetch("token").split(".").first).to eq(RootCause::Embassy::Chat.b64(jwt.fetch("header_json")))
-  end
-
-  it "replays the chat widget tag byte-for-byte" do
-    jwt = JSON.parse(fixture("chat/jwt_vector.json"))
-    config = RootCause::Embassy::Config.new
+    config = ReplyPen::Embassy::Config.new
     config.chat_secret = jwt.fetch("secret")
-    config.chat_project = "acme"
-    allow(SecureRandom).to receive(:uuid).and_return("88888888-8888-8888-8888-888888888888")
-
-    tag = RootCause::Embassy::Chat.widget_tag_html(
+    config.chat_project = claims.fetch("iss")
+    allow(SecureRandom).to receive(:uuid).and_return(claims.fetch("jti"))
+    yield(
       config: config,
-      external_id: "user-8f3",
-      kind: "acme_user",
-      tenant: "acme",
-      origin: "https://app.acme.example",
-      locale: "nl",
-      color_scheme: "light",
-      mode: :page,
-      target: "#rc-chat",
+      external_id: claims.fetch("sub"),
+      kind: claims.fetch("principal").fetch("kind"),
+      tenant: claims.fetch("tenant"),
+      origin: claims.fetch("origin"),
+      locale: claims.fetch("locale"),
+      color_scheme: claims.fetch("color_scheme"),
       now: Time.at(jwt.fetch("now_unix")),
       ttl: jwt.fetch("ttl_seconds")
     )
+  end
 
-    expect(tag).to eq(fixture("chat/widget_tag.html"))
+  it "mints jwt_vector_replypen.json to the exact token (aud replypen:chat:<project>)" do
+    jwt = JSON.parse(fixture("chat/jwt_vector_replypen.json"))
+    token = mint_vector(jwt) { |**options| ReplyPen::Embassy::Chat.token(**options) }
+    expect(token).to eq(jwt.fetch("token"))
+  end
+
+  # widget_tag.html embeds a legacy-aud token as opaque bytes; everything around it is contract.
+  it "replays the chat widget tag byte-for-byte around the minted token" do
+    legacy = JSON.parse(fixture("chat/jwt_vector.json")).fetch("token")
+    jwt = JSON.parse(fixture("chat/jwt_vector_replypen.json"))
+    expected = utf8_fixture("chat/widget_tag.html")
+    expect(expected.scan(legacy).length).to eq(1)
+
+    tag = mint_vector(jwt) do |**options|
+      ReplyPen::Embassy::Chat.widget_tag_html(mode: :page, target: "#rc-chat", **options)
+    end
+
+    expect(tag).to eq(expected.sub(legacy, jwt.fetch("token")))
   end
 end

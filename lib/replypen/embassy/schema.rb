@@ -1,9 +1,9 @@
 # frozen_string_literal: true
 
-module RootCause
+module ReplyPen
   module Embassy
     # Re-validates invocation params against the schema the invocation carries.
-    # This is defense in depth: rootcause already validated at propose-time, but
+    # This is defense in depth: ReplyPen already validated at propose-time, but
     # the runner never trusts the wire. A violation is a hard refuse.
     #
     # Two schema shapes are accepted and normalized to one internal form, so the

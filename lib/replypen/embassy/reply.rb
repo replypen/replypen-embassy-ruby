@@ -2,7 +2,7 @@
 
 require "json"
 
-module RootCause
+module ReplyPen
   module Embassy
     # A signed reply, transport-agnostic. `body` is the exact JSON string the
     # `signature` was computed over — send both verbatim (verify-on-raw). Shared by

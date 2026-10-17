@@ -7,11 +7,11 @@ require "time"
 require "uri"
 require "cgi"
 
-module RootCause
+module ReplyPen
   module Embassy
-    # The MINT side of rootcause's embedded-chat trust boundary. The customer's backend mints a
+    # The MINT side of ReplyPen's embedded-chat trust boundary. The customer's backend mints a
     # short-lived HS256 token asserting *who is chatting* (and, on tenant-enabled projects, *inside
-    # which tenant*); rootcause only ever VERIFIES it. The browser never sees the key, so it cannot
+    # which tenant*); ReplyPen only ever VERIFIES it. The browser never sees the key, so it cannot
     # mint a token for another user, another tenant, another origin, or a later expiry.
     #
     # The signing key is the project's `webhook_secret` (`chat_secret`) — a DIFFERENT privilege
@@ -19,7 +19,7 @@ module RootCause
     # another: a leaked chat key must not buy action execution.
     #
     # Hand-rolled HS256 (OpenSSL::HMAC + base64url + JSON) keeps the gem stdlib-only; the claim set
-    # mirrors the host's verifier (rootcause `internal/chat/jwt.go`) exactly.
+    # mirrors the host's verifier (ReplyPen `internal/chat/jwt.go`) exactly.
     module Chat
       # Token lifetime the host is tuned for: long enough that a page left open across a working
       # session can still open its chat without a reload, short enough that a leaked token ages out
@@ -27,15 +27,15 @@ module RootCause
       # The host also allows 60s clock skew.
       DEFAULT_TTL = 7200
       MAX_TTL = 24 * 60 * 60
-      # One literal, owned by Config (ROOTCAUSE_CHAT_BASE_URL's default); kept reachable here
+      # One literal, owned by Config (REPLYPEN_CHAT_BASE_URL's default); kept reachable here
       # because the widget tag reads it directly.
       DEFAULT_BASE_URL = Config::DEFAULT_CHAT_BASE_URL
 
-      # How the identity was established, carried through to rootcause as the principal's assurance
+      # How the identity was established, carried through to ReplyPen as the principal's assurance
       # level. "customer_backend_jwt" = asserted by the customer's own authenticated server session.
       DEFAULT_ASSURANCE = "customer_backend_jwt"
 
-      # Path of the hosted loader on the rootcause origin (`chat_base_url`).
+      # Path of the hosted loader on the ReplyPen origin (`chat_base_url`).
       LOADER_PATH = "/chat/widget/v1/loader.js"
 
       # The loader is immutable-cached by the host. Bump this whenever the generated tag starts
@@ -44,9 +44,9 @@ module RootCause
 
       module_function
 
-      # Mint an embed token. `external_id` is the opaque, stable user id rootcause anchors a
+      # Mint an embed token. `external_id` is the opaque, stable user id ReplyPen anchors a
       # conversation to (never a name/email); `kind` names the identity namespace it lives in
-      # (e.g. "acme_admin"). `tenant` is the rootcause tenant SLUG — required by the host on a
+      # (e.g. "acme_admin"). `tenant` is the ReplyPen tenant SLUG — required by the host on a
       # tenant-enabled project, and it must come from the server-side authorized tenant context, not
       # from client input: everything below is inside the signature, so a swapped tenant is a broken
       # token.
@@ -64,10 +64,10 @@ module RootCause
       def token(external_id:, origin:, kind:, tenant: nil, locale: nil, color_scheme: nil, ttl: DEFAULT_TTL,
         asserted_by: nil, assurance: DEFAULT_ASSURANCE, config: Embassy.config, now: Time.now)
         secret = presence(config.chat_secret) || raise(Error.public(
-          "CHAT_SECRET_REQUIRED", "Set ROOTCAUSE_CHAT_SECRET to the project's chat signing secret."
+          "CHAT_SECRET_REQUIRED", "Set REPLYPEN_CHAT_SECRET to the project's chat signing secret."
         ))
         project = presence(config.chat_project) || raise(Error.public(
-          "CHAT_PROJECT_REQUIRED", "Set ROOTCAUSE_CHAT_PROJECT to the public ReplyPen project slug."
+          "CHAT_PROJECT_REQUIRED", "Set REPLYPEN_CHAT_PROJECT to the public ReplyPen project slug."
         ))
         external_id = required(
           external_id, "CHAT_EXTERNAL_ID_REQUIRED",
@@ -112,7 +112,7 @@ module RootCause
       end
 
       # The host's required `aud` for a project's embed token.
-      def audience(project) = "rootcause:chat:#{project}"
+      def audience(project) = "replypen:chat:#{project}"
 
       # The loader <script> snippet, as an HTML-ESCAPED plain String (framework-agnostic core; the
       # Rails view shell is ChatViewHelper). Mints a fresh token per render — tokens are short-lived

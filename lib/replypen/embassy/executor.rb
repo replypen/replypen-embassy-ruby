@@ -5,7 +5,7 @@ require "timeout"
 require "stringio"
 require "digest"
 
-module RootCause
+module ReplyPen
   module Embassy
     # Runs a digest-verified script body with params bound AS DATA.
     #

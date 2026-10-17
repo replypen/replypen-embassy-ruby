@@ -1,7 +1,7 @@
 # House cops for this repo, layered on top of StandardRB (which loads this file
 # through `extend_config` in .standard.yml — `bundle exec rake` is still the gate).
 #
-# Each cop guards one invariant from the contract hub (rootcause-embassy) that
+# Each cop guards one invariant from the contract hub (replypen-embassy) that
 # lives in the source as a literal. They are line checks on purpose: cheap enough
 # that nobody deletes them, specific enough that they only fire on the real thing.
 require:
@@ -16,7 +16,7 @@ Embassy/SharedBlankHelper:
   Include:
     - "lib/**/*.rb"
   Exclude:
-    - "lib/rootcause/embassy/util.rb"
+    - "lib/replypen/embassy/util.rb"
     - "lib/rubocop/**/*.rb"
 
 Embassy/LongSpecSleep:
@@ -29,7 +29,7 @@ Embassy/SignatureHeaderEnv:
   Include:
     - "lib/**/*.rb"
   Exclude:
-    - "lib/rootcause/embassy/rack_shell.rb"
+    - "lib/replypen/embassy/rack_shell.rb"
     - "lib/rubocop/**/*.rb"
 
 # The seven wire classes of CONTRACT.md's error table plus method_not_allowed

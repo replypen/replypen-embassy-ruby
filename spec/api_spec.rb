@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-RSpec.describe RootCause::Embassy::Api do
+RSpec.describe ReplyPen::Embassy::Api do
   let(:api) { described_class.new(Wire.api_config) }
   let(:path) { "/api/v1/tenants/yes-events/profile" }
   let(:url) { "#{Wire::API_BASE_URL}#{path}" }
@@ -39,7 +39,7 @@ RSpec.describe RootCause::Embassy::Api do
 
       # Skew: a token with less than 60s of life left is refreshed early, so an
       # in-flight call never carries a token that dies mid-request.
-      RootCause::Embassy::ApiAuth.reset!
+      ReplyPen::Embassy::ApiAuth.reset!
       Wire.stub_token(expires_in: 30)
       2.times { api.get(path) }
       expect(WebMock).to have_requested(:post, Wire::TOKEN_URL).times(3)
@@ -205,11 +205,11 @@ RSpec.describe RootCause::Embassy::Api do
   end
 
   describe ".api_for (a second project's credential)" do
-    # rootcause refresh tokens are project-pinned; an app spanning several projects holds one each.
+    # ReplyPen refresh tokens are project-pinned; an app spanning several projects holds one each.
     let(:other_key) { "rcor_support_project_credential" }
 
     def configure!
-      RootCause::Embassy.configure do |c|
+      ReplyPen::Embassy.configure do |c|
         c.secret = Wire::SECRET
         c.fetch_url = Wire::FETCH_URL
         c.logger = nil
@@ -223,14 +223,14 @@ RSpec.describe RootCause::Embassy::Api do
       Wire.stub_token(access_token: "rcoa_support")
       stub_call(method: :post)
 
-      other = RootCause::Embassy.api_for(api_base_url: Wire::API_BASE_URL, api_key: other_key)
+      other = ReplyPen::Embassy.api_for(api_base_url: Wire::API_BASE_URL, api_key: other_key)
       expect(other).to be_a(described_class)
-      expect(other).not_to be(RootCause::Embassy.api)
+      expect(other).not_to be(ReplyPen::Embassy.api)
       expect(other.post(path, body: {})).to be_ok
 
       expect(WebMock).to have_requested(:post, Wire::TOKEN_URL)
         .with(body: hash_including("refresh_token" => other_key))
-      expect(RootCause::Embassy.config.api_key).to eq(Wire::REFRESH_KEY)
+      expect(ReplyPen::Embassy.config.api_key).to eq(Wire::REFRESH_KEY)
     end
 
     it "caches its access token separately from the singleton's" do
@@ -238,9 +238,9 @@ RSpec.describe RootCause::Embassy::Api do
       stub_call(method: :get)
 
       Wire.stub_token(access_token: "rcoa_singleton")
-      RootCause::Embassy.api.get(path)
+      ReplyPen::Embassy.api.get(path)
       Wire.stub_token(access_token: "rcoa_other")
-      other = RootCause::Embassy.api_for(api_base_url: Wire::API_BASE_URL, api_key: other_key)
+      other = ReplyPen::Embassy.api_for(api_base_url: Wire::API_BASE_URL, api_key: other_key)
       2.times { other.get(path) }
 
       # One exchange per credential — neither reused the other's token.
@@ -250,30 +250,30 @@ RSpec.describe RootCause::Embassy::Api do
     end
 
     it "works before .configure and inherits the configured timeouts/logger after it" do
-      unconfigured = RootCause::Embassy.api_for(api_base_url: Wire::API_BASE_URL, api_key: "static-bearer")
+      unconfigured = ReplyPen::Embassy.api_for(api_base_url: Wire::API_BASE_URL, api_key: "static-bearer")
       Wire.stub_token
       stub_call(method: :get)
       expect(unconfigured.get(path)).to be_ok
 
       configure!
-      RootCause::Embassy.config.http_read_timeout = 42
-      inherited = RootCause::Embassy.api_for(api_base_url: Wire::API_BASE_URL, api_key: other_key)
+      ReplyPen::Embassy.config.http_read_timeout = 42
+      inherited = ReplyPen::Embassy.api_for(api_base_url: Wire::API_BASE_URL, api_key: other_key)
       expect(inherited.instance_variable_get(:@config).http_read_timeout).to eq(42)
     end
 
     it "validates its arguments exactly as the configure block does" do
-      expect { RootCause::Embassy.api_for(api_base_url: Wire::API_BASE_URL, api_key: "") }
+      expect { ReplyPen::Embassy.api_for(api_base_url: Wire::API_BASE_URL, api_key: "") }
         .to raise_error(ArgumentError, /api_key is required/)
-      expect { RootCause::Embassy.api_for(api_base_url: nil, api_key: other_key) }
+      expect { ReplyPen::Embassy.api_for(api_base_url: nil, api_key: other_key) }
         .to raise_error(ArgumentError, /api_base_url is required/)
-      expect { RootCause::Embassy.api_for(api_base_url: "rootcause.test", api_key: other_key) }
+      expect { ReplyPen::Embassy.api_for(api_base_url: "replypen.test", api_key: other_key) }
         .to raise_error(ArgumentError, /absolute http\(s\) URL/)
     end
   end
 
   describe "configuration" do
     it "is reachable as Embassy.api once configured, sharing the config" do
-      RootCause::Embassy.configure do |c|
+      ReplyPen::Embassy.configure do |c|
         c.secret = Wire::SECRET
         c.fetch_url = Wire::FETCH_URL
         c.logger = nil
@@ -283,8 +283,8 @@ RSpec.describe RootCause::Embassy::Api do
       Wire.stub_token
       stub_call(method: :get)
 
-      expect(RootCause::Embassy.api).to be_a(described_class)
-      expect(RootCause::Embassy.api.get(path)).to be_ok
+      expect(ReplyPen::Embassy.api).to be_a(described_class)
+      expect(ReplyPen::Embassy.api.get(path)).to be_ok
     end
 
     it "leaves an Embassy that configures no API plane untouched" do
@@ -298,7 +298,7 @@ RSpec.describe RootCause::Embassy::Api do
         .to raise_error(ArgumentError, /api_base_url is required/)
       expect { Wire.config(api_base_url: Wire::API_BASE_URL).validate! }
         .to raise_error(ArgumentError, /api_key is required/)
-      expect { Wire.api_config(api_base_url: "rootcause.test").validate! }
+      expect { Wire.api_config(api_base_url: "replypen.test").validate! }
         .to raise_error(ArgumentError, /absolute http\(s\) URL/)
     end
   end

@@ -13,8 +13,8 @@ class ReplypenChatController < ApplicationController
 
     response.set_header("Cache-Control", "no-store")
     render json: {
-      token: RootCause::Embassy.chat_token(**chat_identity(origin: origin)),
-      project: RootCause::Embassy.config.chat_project,
+      token: ReplyPen::Embassy.chat_token(**chat_identity(origin: origin)),
+      project: ReplyPen::Embassy.config.chat_project,
       # Server-built so the loader contract version stays owned by the gem — a
       # hardcoded `?v=` in JavaScript would silently drift on a gem upgrade.
       loaderUrl: loader_url
@@ -24,8 +24,8 @@ class ReplypenChatController < ApplicationController
   private
 
   def loader_url
-    chat = RootCause::Embassy::Chat
-    "#{RootCause::Embassy.config.chat_base_url}#{chat::LOADER_PATH}?v=#{chat::LOADER_CONTRACT}"
+    chat = ReplyPen::Embassy::Chat
+    "#{ReplyPen::Embassy.config.chat_base_url}#{chat::LOADER_PATH}?v=#{chat::LOADER_CONTRACT}"
   end
 
   def chat_identity(origin:)
@@ -38,15 +38,15 @@ class ReplypenChatController < ApplicationController
   end
 
   def allowed_origin
-    origin = RootCause::Embassy::Chat.normalize_origin(request.headers["Origin"])
+    origin = ReplyPen::Embassy::Chat.normalize_origin(request.headers["Origin"])
     origin if chat_origins.include?(origin)
-  rescue RootCause::Embassy::Error
+  rescue ReplyPen::Embassy::Error
     nil
   end
 
   def chat_origins
-    @chat_origins ||= ENV.fetch("ROOTCAUSE_CHAT_ORIGINS").split(",").map { |origin|
-      RootCause::Embassy::Chat.normalize_origin(origin.strip)
+    @chat_origins ||= ENV.fetch("REPLYPEN_CHAT_ORIGINS").split(",").map { |origin|
+      ReplyPen::Embassy::Chat.normalize_origin(origin.strip)
     }.uniq.freeze
   end
 

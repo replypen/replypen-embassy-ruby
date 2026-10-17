@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-RSpec.describe RootCause::Embassy::Chat do
+RSpec.describe ReplyPen::Embassy::Chat do
   let(:cfg) { Wire.chat_config }
 
   def mint(**overrides)
@@ -17,7 +17,7 @@ RSpec.describe RootCause::Embassy::Chat do
       expect(header).to eq("alg" => "HS256", "typ" => "JWT")
       expect(claims).to include(
         "sub" => "admin-uuid-1",
-        "aud" => "rootcause:chat:#{Wire::CHAT_PROJECT}",
+        "aud" => "replypen:chat:#{Wire::CHAT_PROJECT}",
         "iss" => Wire::CHAT_PROJECT,
         "origin" => Wire::CHAT_ORIGIN,
         "tenant" => "heyo",
@@ -73,7 +73,7 @@ RSpec.describe RootCause::Embassy::Chat do
 
     it "refuses a ttl above the 24-hour maximum with a typed diagnostic" do
       expect { mint(ttl: described_class::MAX_TTL + 1) }
-        .to raise_error(RootCause::Embassy::Error) { |error|
+        .to raise_error(ReplyPen::Embassy::Error) { |error|
           expect(error.code).to eq("TOKEN_TTL_INVALID")
           expect(error.hint).not_to be_empty
           expect(error.docs).to end_with("#token_ttl_invalid")
@@ -112,17 +112,17 @@ RSpec.describe RootCause::Embassy::Chat do
     end
 
     it "names the missing ENV when chat is not configured" do
-      expect { mint(config: Wire.config) }.to raise_error(ArgumentError, /ROOTCAUSE_CHAT_SECRET/)
+      expect { mint(config: Wire.config) }.to raise_error(ArgumentError, /REPLYPEN_CHAT_SECRET/)
     end
 
-    it "is reachable as RootCause::Embassy.chat_token on the configured singleton" do
-      RootCause::Embassy.configure do |c|
+    it "is reachable as ReplyPen::Embassy.chat_token on the configured singleton" do
+      ReplyPen::Embassy.configure do |c|
         c.secret = Wire::SECRET
         c.fetch_url = Wire::FETCH_URL
         c.chat_secret = Wire::CHAT_SECRET
         c.chat_project = Wire::CHAT_PROJECT
       end
-      token = RootCause::Embassy.chat_token(
+      token = ReplyPen::Embassy.chat_token(
         external_id: "admin-uuid-1", kind: "acme_admin", origin: Wire::CHAT_ORIGIN
       )
       expect(Wire.decode_jwt(token).last["iss"]).to eq(Wire::CHAT_PROJECT)
@@ -190,23 +190,23 @@ RSpec.describe RootCause::Embassy::Chat do
     end
 
     it "validates mode and target as typed integrator errors" do
-      expect { tag(mode: :drawer) }.to raise_error(RootCause::Embassy::Error) { |error|
+      expect { tag(mode: :drawer) }.to raise_error(ReplyPen::Embassy::Error) { |error|
         expect(error.code).to eq("WIDGET_MODE_INVALID")
       }
-      expect { tag(mode: :page) }.to raise_error(RootCause::Embassy::Error) { |error|
+      expect { tag(mode: :page) }.to raise_error(ReplyPen::Embassy::Error) { |error|
         expect(error.code).to eq("WIDGET_TARGET_INVALID")
       }
-      expect { tag(mode: :page, target: "  ") }.to raise_error(RootCause::Embassy::Error) { |error|
+      expect { tag(mode: :page, target: "  ") }.to raise_error(ReplyPen::Embassy::Error) { |error|
         expect(error.code).to eq("WIDGET_TARGET_INVALID")
       }
-      expect { tag(target: "#chat") }.to raise_error(RootCause::Embassy::Error) { |error|
+      expect { tag(target: "#chat") }.to raise_error(ReplyPen::Embassy::Error) { |error|
         expect(error.code).to eq("WIDGET_TARGET_INVALID")
       }
       expect(tag(mode: :bubble)).to include(%(data-rc-mode="bubble"))
     end
   end
 
-  describe RootCause::Embassy::ChatViewHelper do
+  describe ReplyPen::Embassy::ChatViewHelper do
     let(:view) { Object.new.extend(described_class) }
 
     it "returns the escaped core snippet, marked safe when ActiveSupport is present" do

@@ -1,21 +1,21 @@
 # Sent-Message Capture Spec (gem side)
 
-**Status:** ready to build · **Repo:** `rootcause-embassy` (the gem) · **Wire contract:** [`rootcause-embassy/CONTRACT.md`](https://github.com/rootcause-org/rootcause-embassy/blob/main/CONTRACT.md). Host and consumer build in lockstep against that one contract (§3).
+**Status:** ready to build · **Repo:** `replypen-embassy` (the gem) · **Wire contract:** [`replypen-embassy/CONTRACT.md`](https://github.com/replypen/replypen-embassy/blob/main/CONTRACT.md). Host and consumer build in lockstep against that one contract (§3).
 
 ## 1. Intent
 
-Add a fire-and-forget gem method so a consuming app can hand the rootcause host **the actual
-reply a human agent sent to a customer** (after editing rootcause's proposed draft). The host
+Add a fire-and-forget gem method so a consuming app can hand the ReplyPen host **the actual
+reply a human agent sent to a customer** (after editing ReplyPen's proposed draft). The host
 persists it, keyed to the same `session_id` as the analysis, so a later story can learn the
 proposed-vs-sent delta. No analysis here — just transport.
 
 This is the gem-channel analogue of ReplyPen's `sent_capture` lane (ReplyPen has its own direct
-webhook path; the gem path is for apps that integrate via `RootCause::Embassy`, e.g.
+webhook path; the gem path is for apps that integrate via `ReplyPen::Embassy`, e.g.
 acme). Both feed the **same** `sent_messages` sink on the host.
 
 ## 2. New public method — mirror `start_analysis`
 
-`start_analysis` (`lib/rootcause/embassy/client.rb:36-57`) is the exact precedent: build
+`start_analysis` (`lib/replypen/embassy/client.rb:36-57`) is the exact precedent: build
 payload → normalize → JSON → sign → POST → parse → return struct. Clone that shape.
 
 - **Config** (`config.rb`): add optional `attr_accessor :sent_message_url` (like `trigger_url`).
@@ -30,10 +30,10 @@ payload → normalize → JSON → sign → POST → parse → return struct. Cl
 - **Signature** params (Ruby kwargs):
 
 ```ruby
-RootCause::Embassy.capture_sent_message(
+ReplyPen::Embassy.capture_sent_message(
   sent_body:,        # String, required — the actual reply that left the building (markdown/plain)
   session_id:,       # String, required — same session handle used in start_analysis
-  proposed_body: nil,# String — what rootcause proposed (for the delta); omit if unknown
+  proposed_body: nil,# String — what ReplyPen proposed (for the delta); omit if unknown
   sender: nil,       # String — who sent it (agent label/name)
   metadata: {}       # Hash — EXACTLY { resource_type:, resource_id: }, both Strings; KEYS logged, never values
 )
@@ -56,7 +56,7 @@ host already enforces for the analysis trigger). Body:
   "type": "sent_message",
   "session_id": "support_ticket-<uuid>",
   "sent": { "body": "what the agent actually sent", "sender": "Astrid" },
-  "proposed": { "body": "what rootcause proposed (or omitted)" },
+  "proposed": { "body": "what ReplyPen proposed (or omitted)" },
   "metadata": { "resource_type": "SupportTicket", "resource_id": "<uuid>" },
   "nonce": "<uuid>",
   "issued_at": "2026-06-17T10:05:00Z"
@@ -75,7 +75,7 @@ host already enforces for the analysis trigger). Body:
 
 ## 4. Host endpoint (what the gem targets — see host spec for the build)
 
-A new route on rootcause, sibling of the analysis trigger, verified with the project's
+A new route on ReplyPen, sibling of the analysis trigger, verified with the project's
 **reverse secret** (`projects.action_reverse_secret`) + replay guard, persisting into the shared
 `sent_messages` table (the table the ReplyPen path already defines). Detailed in
 the hub CONTRACT's sent-message route. The gem only needs the

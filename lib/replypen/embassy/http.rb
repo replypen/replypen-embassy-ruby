@@ -2,10 +2,10 @@
 
 require "net/http"
 
-module RootCause
+module ReplyPen
   module Embassy
     # Single Net::HTTP entry point shared by both directions that dial the
-    # rootcause origin: the inbound script-fetch (Resolver, GET) and the outbound
+    # ReplyPen origin: the inbound script-fetch (Resolver, GET) and the outbound
     # analysis trigger (Client, POST). It centralizes the SSL + timeout wiring so
     # the two stay identical; callers build the Request (verb, headers, body) and
     # hand it here to run. Stdlib only, no new dep.

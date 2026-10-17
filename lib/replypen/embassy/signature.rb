@@ -2,7 +2,7 @@
 
 require "openssl"
 
-module RootCause
+module ReplyPen
   module Embassy
     # HMAC-SHA256 over a raw byte string, formatted as the wire header value
     # `sha256=<hex>`. Used in both directions: verify inbound invocations, sign

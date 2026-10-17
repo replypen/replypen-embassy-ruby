@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-RSpec.describe RootCause::Embassy::Executor do
+RSpec.describe ReplyPen::Embassy::Executor do
   let(:config) { Wire.config(timeout: 2) }
   let(:executor) { described_class.new(config) }
 
@@ -21,7 +21,7 @@ RSpec.describe RootCause::Embassy::Executor do
   end
 
   it "installs only trusted tenant environment for the run and restores the process environment" do
-    original = RootCause::Embassy::Executor::TRUSTED_ENV_KEYS.to_h do |key|
+    original = ReplyPen::Embassy::Executor::TRUSTED_ENV_KEYS.to_h do |key|
       [key, [ENV.key?(key), ENV[key]]]
     end
     ENV["RC_TENANT_ID"] = "stale-process-value"
@@ -146,7 +146,7 @@ RSpec.describe RootCause::Embassy::Executor do
   it "fails the run when the return value is not JSON-serializable" do
     result = run("0.0 / 0.0") # NaN — JSON.generate refuses it by default
     expect(result.ok).to be(false)
-    expect(result.error[:class]).to eq("RootCause::Embassy::NonSerializableResult")
+    expect(result.error[:class]).to eq("ReplyPen::Embassy::NonSerializableResult")
   end
 
   it "captures stdout, caps it at max_stdout_bytes, and omits it when disabled" do

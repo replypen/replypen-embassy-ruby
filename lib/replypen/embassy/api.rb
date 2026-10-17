@@ -4,15 +4,15 @@ require "net/http"
 require "uri"
 require "json"
 
-module RootCause
+module ReplyPen
   module Embassy
-    # The **API plane**: a generic, authenticated caller for *any* rootcause
+    # The **API plane**: a generic, authenticated caller for *any* ReplyPen
     # backend endpoint — the same HTTP surface the `rc` CLI uses. Deliberately
     # NOT a set of per-endpoint wrappers: the gem owns transport + auth, the
     # caller owns the path and the body (see docs/generic-api.md, and the host's
     # API spec/manifest for what endpoints exist).
     #
-    #   RootCause::Embassy.api.patch("/api/v1/tenants/#{slug}/profile",
+    #   ReplyPen::Embassy.api.patch("/api/v1/tenants/#{slug}/profile",
     #     body: {settings: {...}, source: "embassy"})
     #
     # Distinct from Client: that is the signed reverse channel (HMAC, no bearer);
@@ -40,7 +40,7 @@ module RootCause
         def retryable? = !!retryable
       end
 
-      # A caller bound to ONE project's credential. rootcause refresh tokens are
+      # A caller bound to ONE project's credential. ReplyPen refresh tokens are
       # project-pinned, so an app that talks to several projects (e.g. a tenant
       # profile on one, brain edits on two others) holds several credentials and
       # builds one Api each — see Embassy.api_for. Tokens never mix: ApiAuth keys
@@ -58,8 +58,8 @@ module RootCause
         config.api_key = api_key
         # validate_api! passes a pair that is blank on BOTH sides (the opt-out an
         # Embassy without an API plane relies on) — here, both are required.
-        raise ArgumentError, "RootCause::Embassy: api_base_url is required" if blank_value?(api_base_url)
-        raise ArgumentError, "RootCause::Embassy: api_key is required" if blank_value?(api_key)
+        raise ArgumentError, "ReplyPen::Embassy: api_base_url is required" if blank_value?(api_base_url)
+        raise ArgumentError, "ReplyPen::Embassy: api_key is required" if blank_value?(api_key)
 
         config.validate_api!
         new(config)
@@ -119,14 +119,14 @@ module RootCause
 
       def base_url
         url = @config.api_base_url
-        raise ArgumentError, "RootCause::Embassy: api_base_url is not configured" if Util.blank?(url)
+        raise ArgumentError, "ReplyPen::Embassy: api_base_url is not configured" if Util.blank?(url)
 
         url.to_s
       end
 
       def api_key
         key = @config.api_key
-        raise ArgumentError, "RootCause::Embassy: api_key is not configured" if Util.blank?(key)
+        raise ArgumentError, "ReplyPen::Embassy: api_key is not configured" if Util.blank?(key)
 
         key.to_s
       end
@@ -137,14 +137,14 @@ module RootCause
       # long as it points at that same origin (a typo must not leak the bearer to
       # another host).
       def build_uri(path, params)
-        raise ArgumentError, "RootCause::Embassy: api path is required" if Util.blank?(path)
+        raise ArgumentError, "ReplyPen::Embassy: api path is required" if Util.blank?(path)
 
         base = URI(base_url.to_s.chomp("/"))
         uri = URI(path.to_s)
         if uri.absolute?
           unless uri.scheme == base.scheme && uri.host == base.host && uri.port == base.port
             raise ArgumentError,
-              "RootCause::Embassy: api path #{path.inspect} is not on api_base_url (#{base_url})"
+              "ReplyPen::Embassy: api path #{path.inspect} is not on api_base_url (#{base_url})"
           end
         else
           relative = path.to_s.start_with?("/") ? path.to_s : "/#{path}"
@@ -161,7 +161,7 @@ module RootCause
         # A malformed URL or port is a caller bug, exactly like the off-origin case
         # above — raise it instead of letting the generic rescue in `request` bury it
         # in a retryable Response the caller would then retry forever.
-        raise ArgumentError, "RootCause::Embassy: api path #{path.inspect} is not a valid URL (#{e.message})"
+        raise ArgumentError, "ReplyPen::Embassy: api path #{path.inspect} is not a valid URL (#{e.message})"
       end
 
       REQUESTS = {
@@ -171,7 +171,7 @@ module RootCause
 
       def perform(method, uri, bearer, body)
         klass = REQUESTS[method.to_s.downcase.to_sym] ||
-          raise(ArgumentError, "RootCause::Embassy: unsupported api method #{method.inspect}")
+          raise(ArgumentError, "ReplyPen::Embassy: unsupported api method #{method.inspect}")
         request = klass.new(uri)
         request["authorization"] = "Bearer #{bearer}"
         request["accept"] = "application/json"
@@ -232,7 +232,7 @@ module RootCause
       def log(method, uri, status)
         return unless @config.logger
 
-        @config.logger.info("[rootcause-api] #{method.to_s.upcase} #{uri.path} → #{status}")
+        @config.logger.info("[replypen-api] #{method.to_s.upcase} #{uri.path} → #{status}")
       end
     end
   end

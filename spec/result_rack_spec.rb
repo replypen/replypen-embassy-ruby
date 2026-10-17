@@ -4,7 +4,7 @@ require "stringio"
 
 # A recording handler, resolvable by name (Object.const_get) to exercise the
 # lazy-load path. Upserts by analysis_id so a redelivery can't duplicate.
-class SpecResultHandler < RootCause::Embassy::ResultHandler
+class SpecResultHandler < ReplyPen::Embassy::ResultHandler
   class << self
     def store = (@store ||= {})
     def reset! = (@store = {})
@@ -16,11 +16,11 @@ class SpecResultHandler < RootCause::Embassy::ResultHandler
 end
 
 # A handler that always blows up — proves a handler exception is NOT acked.
-class SpecBoomHandler < RootCause::Embassy::ResultHandler
+class SpecBoomHandler < ReplyPen::Embassy::ResultHandler
   def process(_result) = raise "boom"
 end
 
-RSpec.describe RootCause::Embassy::ResultReceiver do
+RSpec.describe ReplyPen::Embassy::ResultReceiver do
   let(:config) { Wire.config(result_handler: "SpecResultHandler") }
   let(:receiver) { described_class.new(config) }
 
@@ -38,7 +38,7 @@ RSpec.describe RootCause::Embassy::ResultReceiver do
 
     expect(reply.status).to eq(200)
     expect(body_of(reply)).to eq({"ok" => true})
-    expect(RootCause::Embassy::Signature.valid?(reply.signature, reply.body, secret: Wire::SECRET)).to be(true)
+    expect(ReplyPen::Embassy::Signature.valid?(reply.signature, reply.body, secret: Wire::SECRET)).to be(true)
 
     delivered = SpecResultHandler.store.fetch("run-1")
     expect(delivered.metadata).to eq({resource_type: "SupportTicket", resource_id: "42"})
@@ -56,7 +56,7 @@ RSpec.describe RootCause::Embassy::ResultReceiver do
       "docs" => a_string_ending_with("#bad_signature")
     )
     expect(SpecResultHandler.store).to be_empty
-    expect(RootCause::Embassy::Signature.valid?(reply.signature, reply.body, secret: Wire::SECRET)).to be(true)
+    expect(ReplyPen::Embassy::Signature.valid?(reply.signature, reply.body, secret: Wire::SECRET)).to be(true)
 
     raw = JSON.generate(Wire.result)
     expect(receiver.handle(raw_body: raw, signature: nil).status).to eq(401)
@@ -81,7 +81,7 @@ RSpec.describe RootCause::Embassy::ResultReceiver do
     reply = handle(payload)
     expect(reply.status).to eq(200)
     expect(body_of(reply)).to eq({"ok" => true})
-    expect(RootCause::Embassy::Signature.valid?(reply.signature, reply.body, secret: Wire::SECRET)).to be(true)
+    expect(ReplyPen::Embassy::Signature.valid?(reply.signature, reply.body, secret: Wire::SECRET)).to be(true)
     # The redelivery never reached the handler — it was deduped, not reprocessed.
     expect(SpecResultHandler.store).to be_empty
   end
@@ -117,7 +117,7 @@ RSpec.describe RootCause::Embassy::ResultReceiver do
 
     # The customer continues the thread with ONLY the new message.
     Wire.stub_trigger
-    RootCause::Embassy::Client.new(config).start_analysis(
+    ReplyPen::Embassy::Client.new(config).start_analysis(
       subject: "follow up", body: "new turn only", session_id: delivered.session_id
     )
 
@@ -144,20 +144,20 @@ RSpec.describe RootCause::Embassy::ResultReceiver do
 
       expect(reply.status).to eq(500), spec.inspect
       expect(body_of(reply).dig("error", "class")).to eq("handler_error")
-      expect(RootCause::Embassy::Signature.valid?(reply.signature, reply.body, secret: Wire::SECRET)).to be(true)
+      expect(ReplyPen::Embassy::Signature.valid?(reply.signature, reply.body, secret: Wire::SECRET)).to be(true)
     end
   end
 
   context "when the handler raises" do
     let(:config) { Wire.config(result_handler: "SpecBoomHandler") }
 
-    it "returns a signed 500 and does NOT ack (so rootcause redelivers)" do
+    it "returns a signed 500 and does NOT ack (so ReplyPen redelivers)" do
       reply = handle(Wire.result)
       expect(reply.status).to eq(500)
       expect(body_of(reply).dig("error", "class")).to eq("internal_error")
       # Message is the class only — never the (possibly input-bearing) message.
       expect(body_of(reply).dig("error", "message")).to eq("RuntimeError")
-      expect(RootCause::Embassy::Signature.valid?(reply.signature, reply.body, secret: Wire::SECRET)).to be(true)
+      expect(ReplyPen::Embassy::Signature.valid?(reply.signature, reply.body, secret: Wire::SECRET)).to be(true)
     end
   end
 
@@ -168,9 +168,9 @@ RSpec.describe RootCause::Embassy::ResultReceiver do
   end
 end
 
-RSpec.describe RootCause::Embassy::ResultRackApp do
+RSpec.describe ReplyPen::Embassy::ResultRackApp do
   let(:config) { Wire.config(result_handler: "SpecResultHandler") }
-  let(:receiver) { RootCause::Embassy::ResultReceiver.new(config) }
+  let(:receiver) { ReplyPen::Embassy::ResultReceiver.new(config) }
   let(:app) { described_class.new(receiver: receiver) }
 
   before { SpecResultHandler.reset! }
@@ -196,7 +196,7 @@ RSpec.describe RootCause::Embassy::ResultRackApp do
   end
 
   it "falls back to the globally-configured receiver when none is injected" do
-    RootCause::Embassy.configure { |c|
+    ReplyPen::Embassy.configure { |c|
       c.secret = Wire::SECRET
       c.fetch_url = Wire::FETCH_URL
       c.result_handler = "SpecResultHandler"

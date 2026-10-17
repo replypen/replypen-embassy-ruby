@@ -1,11 +1,11 @@
 # frozen_string_literal: true
 
-module RootCause
+module ReplyPen
   module Embassy
     # The mounted HTTP handler for the invocation route — RackShell over Runner.
     # Mount it in Rails routes (least magic, easy to restrict at the edge):
     #
-    #   mount RootCause::Embassy::RackApp.new => RootCause::Embassy.config.mount_at
+    #   mount ReplyPen::Embassy::RackApp.new => ReplyPen::Embassy.config.mount_at
     #
     # Named RackApp (not Rack) to avoid shadowing the Rack gem's top-level module.
     class RackApp
@@ -19,7 +19,7 @@ module RootCause
 
       # Resolve lazily so the app can be constructed at require-time (before the
       # initializer runs) yet still bind to the configured runner per request.
-      def core = @runner || RootCause::Embassy.runner
+      def core = @runner || ReplyPen::Embassy.runner
 
       # Plane check first (Go-port parity): a chat-only deployment that mounts the
       # action routes gets a diagnostic 503 on the health child too, instead of a

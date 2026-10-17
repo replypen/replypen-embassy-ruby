@@ -2,7 +2,7 @@
 
 # The outbound trigger: build → sign → POST → parse {analysis_id}. The host's
 # trigger endpoint is stubbed via Wire (202 + analysis_id); no live host.
-RSpec.describe RootCause::Embassy::Client do
+RSpec.describe ReplyPen::Embassy::Client do
   let(:config) { Wire.config }
   let(:client) { described_class.new(config) }
 
@@ -24,7 +24,7 @@ RSpec.describe RootCause::Embassy::Client do
     expect(
       a_request(:post, Wire::TRIGGER_URL).with { |req|
         body = JSON.parse(req.body)
-        sig_ok = RootCause::Embassy::Signature.valid?(
+        sig_ok = ReplyPen::Embassy::Signature.valid?(
           req.headers["X-Webhook-Signature"], req.body, secret: Wire::SECRET
         )
         sig_ok &&
@@ -203,7 +203,7 @@ RSpec.describe RootCause::Embassy::Client do
     Wire.stub_trigger(status: 500)
     expect {
       client.start_analysis(subject: "s", body: "b")
-    }.to raise_error(RootCause::Embassy::TriggerError, /500/)
+    }.to raise_error(ReplyPen::Embassy::TriggerError, /500/)
   end
 
   it "raises TriggerError when the response omits analysis_id" do
@@ -212,14 +212,14 @@ RSpec.describe RootCause::Embassy::Client do
     )
     expect {
       client.start_analysis(subject: "s", body: "b")
-    }.to raise_error(RootCause::Embassy::TriggerError, /missing analysis_id/)
+    }.to raise_error(ReplyPen::Embassy::TriggerError, /missing analysis_id/)
   end
 
   it "raises TriggerError on a transport failure" do
     WebMock.stub_request(:post, Wire::TRIGGER_URL).to_timeout
     expect {
       client.start_analysis(subject: "s", body: "b")
-    }.to raise_error(RootCause::Embassy::TriggerError, /trigger failed/) { |error|
+    }.to raise_error(ReplyPen::Embassy::TriggerError, /trigger failed/) { |error|
       expect(error.status).to be_nil
       expect(error.code).to be_nil
     }
@@ -232,7 +232,7 @@ RSpec.describe RootCause::Embassy::Client do
     )
     expect {
       client.start_analysis(subject: "s", body: "b", context_refs: [{kind: "action_run", id: "55555555-5555-5555-5555-555555555555"}])
-    }.to raise_error(RootCause::Embassy::TriggerError) { |error|
+    }.to raise_error(ReplyPen::Embassy::TriggerError) { |error|
       expect(error.status).to eq(400)
       expect(error.code).to eq("CONTEXT_REF_REFUSED")
       expect(error.message).to eq("analysis trigger returned 400 (CONTEXT_REF_REFUSED)")
@@ -248,7 +248,7 @@ RSpec.describe RootCause::Embassy::Client do
       WebMock.stub_request(:post, Wire::TRIGGER_URL).to_return(status: 502, body: body)
       expect {
         client.start_analysis(subject: "s", body: "b")
-      }.to raise_error(RootCause::Embassy::TriggerError) { |error|
+      }.to raise_error(ReplyPen::Embassy::TriggerError) { |error|
         expect(error.status).to eq(502)
         expect(error.code).to be_nil
         expect(error.message).to eq("analysis trigger returned 502")
@@ -295,7 +295,7 @@ RSpec.describe RootCause::Embassy::Client do
       ].each do |refs|
         expect {
           client.start_analysis(subject: "s", body: "b", context_refs: refs)
-        }.to raise_error(RootCause::Embassy::Error) { |error| expect(error.code).to eq("ANALYSIS_REQUEST_INVALID") }
+        }.to raise_error(ReplyPen::Embassy::Error) { |error| expect(error.code).to eq("ANALYSIS_REQUEST_INVALID") }
       end
       expect(stub).not_to have_been_requested
     end
@@ -305,10 +305,10 @@ RSpec.describe RootCause::Embassy::Client do
     config.trigger_url = nil
     expect {
       client.start_analysis(subject: "s", body: "b")
-    }.to raise_error(RootCause::Embassy::Error) { |error|
+    }.to raise_error(ReplyPen::Embassy::Error) { |error|
       expect(error).to be_a(ArgumentError) # unchanged for callers rescuing the old shape
       expect(error.code).to eq("ANALYSIS_TRIGGER_URL_REQUIRED")
-      expect(error.hint).to include("ROOTCAUSE_TRIGGER_URL")
+      expect(error.hint).to include("REPLYPEN_TRIGGER_URL")
       expect(error.docs).to end_with("errors.md#analysis_trigger_url_required")
     }
   end
@@ -353,7 +353,7 @@ RSpec.describe RootCause::Embassy::Client do
       expect(
         a_request(:post, Wire::SENT_MESSAGE_URL).with { |req|
           body = JSON.parse(req.body)
-          sig_ok = RootCause::Embassy::Signature.valid?(
+          sig_ok = ReplyPen::Embassy::Signature.valid?(
             req.headers["X-Webhook-Signature"], req.body, secret: Wire::SECRET
           )
           sig_ok &&
@@ -406,7 +406,7 @@ RSpec.describe RootCause::Embassy::Client do
       stub = Wire.stub_sent_message
       expect {
         client.capture_sent_message(session_id: "sess-1", answers: [{id: "country", values: []}])
-      }.to raise_error(RootCause::Embassy::Error) { |error|
+      }.to raise_error(ReplyPen::Embassy::Error) { |error|
         expect(error.code).to eq("SENT_MESSAGE_INVALID")
       }
       expect(stub).not_to have_been_requested
@@ -424,7 +424,7 @@ RSpec.describe RootCause::Embassy::Client do
       stub = Wire.stub_sent_message
       expect {
         client.capture_sent_message(sent_body: "reply", session_id: "sess-1")
-      }.to raise_error(RootCause::Embassy::Error) { |error|
+      }.to raise_error(ReplyPen::Embassy::Error) { |error|
         expect(error.code).to eq("SENT_MESSAGE_URL_REQUIRED")
         expect(error.docs).to end_with("errors.md#sent_message_url_required")
       }
@@ -443,7 +443,7 @@ RSpec.describe RootCause::Embassy::Client do
       stub = Wire.stub_sent_message
       expect {
         client.capture_sent_message(sent_body: "reply", session_id: "")
-      }.to raise_error(RootCause::Embassy::Error) { |error| expect(error.code).to eq("SESSION_ID_REQUIRED") }
+      }.to raise_error(ReplyPen::Embassy::Error) { |error| expect(error.code).to eq("SESSION_ID_REQUIRED") }
       expect(stub).not_to have_been_requested
     end
 
@@ -451,14 +451,14 @@ RSpec.describe RootCause::Embassy::Client do
       Wire.stub_sent_message(status: 500)
       expect {
         client.capture_sent_message(sent_body: "reply", session_id: "sess-1")
-      }.to raise_error(RootCause::Embassy::SentMessageError, /500/)
+      }.to raise_error(ReplyPen::Embassy::SentMessageError, /500/)
     end
 
     it "raises SentMessageError on a transport failure" do
       WebMock.stub_request(:post, Wire::SENT_MESSAGE_URL).to_timeout
       expect {
         client.capture_sent_message(sent_body: "reply", session_id: "sess-1")
-      }.to raise_error(RootCause::Embassy::SentMessageError, /capture failed/)
+      }.to raise_error(ReplyPen::Embassy::SentMessageError, /capture failed/)
     end
 
     describe "logging" do

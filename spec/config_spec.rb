@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-RSpec.describe RootCause::Embassy::Config do
+RSpec.describe ReplyPen::Embassy::Config do
   # Every boot gate is fail-closed AND names the attribute the operator must fix —
   # that naming is the whole point, so assert it once over the whole table.
   it "refuses to boot on a missing or invalid attribute, naming it" do
@@ -22,13 +22,13 @@ RSpec.describe RootCause::Embassy::Config do
     cfg = described_class.new
     cfg.secret = "s"
     cfg.fetch_url = described_class::PLACEHOLDER_FETCH_URL
-    expect { cfg.validate! }.to raise_error(ArgumentError, /placeholder.*ROOTCAUSE_FETCH_URL/m)
+    expect { cfg.validate! }.to raise_error(ArgumentError, /placeholder.*REPLYPEN_FETCH_URL/m)
   end
 
   it "rejects any fetch_url whose host ends in .invalid when the reverse channel is active" do
     cfg = described_class.new
     cfg.secret = "s"
-    cfg.fetch_url = "https://rootcause.invalid/actions/script"
+    cfg.fetch_url = "https://replypen.invalid/actions/script"
     expect { cfg.validate! }.to raise_error(ArgumentError, /placeholder/)
   end
 
@@ -78,7 +78,7 @@ RSpec.describe RootCause::Embassy::Config do
       expect(cfg.chat_configured?).to be(true)
 
       cfg.chat_project = nil
-      expect { cfg.validate! }.to raise_error(RootCause::Embassy::Error) { |error|
+      expect { cfg.validate! }.to raise_error(ReplyPen::Embassy::Error) { |error|
         expect(error.code).to eq("CHAT_PROJECT_REQUIRED")
       }
     end
@@ -87,14 +87,14 @@ RSpec.describe RootCause::Embassy::Config do
       cfg = base
       cfg.chat_secret = "s"
       cfg.chat_project = "acme-support"
-      expect { cfg.validate! }.to raise_error(ArgumentError, /ROOTCAUSE_CHAT_SECRET/)
+      expect { cfg.validate! }.to raise_error(ArgumentError, /REPLYPEN_CHAT_SECRET/)
     end
 
     it "rejects a chat_base_url that is not an absolute http(s) URL" do
       cfg = base
       cfg.chat_secret = "webhook-secret"
       cfg.chat_project = "acme-support"
-      cfg.chat_base_url = "chat.rootcause.test"
+      cfg.chat_base_url = "chat.replypen.test"
       expect { cfg.validate! }.to raise_error(ArgumentError, /chat_base_url/)
     end
 
@@ -105,7 +105,7 @@ RSpec.describe RootCause::Embassy::Config do
 
       ["https://user:pass@app.replypen.com", "https://app.replypen.com/chat"].each do |url|
         cfg.chat_base_url = url
-        expect { cfg.validate! }.to raise_error(RootCause::Embassy::Error) { |error|
+        expect { cfg.validate! }.to raise_error(ReplyPen::Embassy::Error) { |error|
           expect(error.code).to eq("CHAT_BASE_URL_INVALID")
         }
       end
@@ -122,7 +122,7 @@ RSpec.describe RootCause::Embassy::Config do
   end
 end
 
-RSpec.describe RootCause::Embassy do
+RSpec.describe ReplyPen::Embassy do
   it "raises a clear error if used before configuration" do
     described_class.reset!
     expect { described_class.runner }.to raise_error(/not configured/)
@@ -133,7 +133,7 @@ RSpec.describe RootCause::Embassy do
       c.secret = "s"
       c.fetch_url = "https://x"
     }
-    expect(described_class.runner).to be_a(RootCause::Embassy::Runner)
+    expect(described_class.runner).to be_a(ReplyPen::Embassy::Runner)
     expect(described_class.config.secret).to eq("s")
   end
 

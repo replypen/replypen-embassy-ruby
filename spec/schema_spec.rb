@@ -1,8 +1,8 @@
 # frozen_string_literal: true
 
-SchemaError = RootCause::Embassy::SchemaError
+SchemaError = ReplyPen::Embassy::SchemaError
 
-RSpec.describe RootCause::Embassy::Schema do
+RSpec.describe ReplyPen::Embassy::Schema do
   def validate(params, schema)
     described_class.validate!(params, schema)
   end

@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-RSpec.describe RootCause::Embassy::Result do
+RSpec.describe ReplyPen::Embassy::Result do
   it "maps CallbackPayload JSON to symbol-keyed, frozen accessors with markdown draft/note" do
     result = described_class.from_payload(
       "analysis_id" => "run-1",

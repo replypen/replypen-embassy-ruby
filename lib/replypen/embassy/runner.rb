@@ -3,7 +3,7 @@
 require "json"
 require "timeout"
 
-module RootCause
+module ReplyPen
   module Embassy
     # The framework-agnostic core: one raw request body + its signature in, one
     # signed JSON reply out. This is the verify → replay → validate → resolve →
@@ -119,7 +119,7 @@ module RootCause
       end
 
       def log_deadline
-        @config.logger&.error("[rootcause-action] refused code=deadline total_deadline=#{@config.total_deadline}")
+        @config.logger&.error("[replypen-action] refused code=deadline total_deadline=#{@config.total_deadline}")
       end
 
       # Host-owned fields on top of the shared required-field check. Everything
@@ -167,7 +167,7 @@ module RootCause
           secret: secret
         )
 
-        # Action plane, dry run (rootcause-embassy CONTRACT.md, planes/actions.md):
+        # Action plane, dry run (replypen-embassy CONTRACT.md, planes/actions.md):
         # the full verify→replay→schema→resolve pipeline runs but execution is
         # SKIPPED, returning a signed ok:true Result that proves the contract holds
         # with zero side effects. Strictly `== true`; anything else was already
@@ -324,7 +324,7 @@ module RootCause
         return unless @config.logger
 
         @config.logger.info(
-          "[rootcause-action] action_id=#{invocation["action_id"]} " \
+          "[replypen-action] action_id=#{invocation["action_id"]} " \
           "digest=#{invocation["script_digest"]} " \
           "param_keys=#{param_keys(invocation["params"])} " \
           "ok=#{ok} duration_ms=#{duration_ms}"
@@ -337,7 +337,7 @@ module RootCause
         # Best-effort context without trusting/echoing an unauthenticated body:
         # param KEYS only, and only if it parsed.
         keys = safe_param_keys(raw_body)
-        @config.logger.warn("[rootcause-action] refused code=#{error.code} param_keys=#{keys} msg=#{error.message}")
+        @config.logger.warn("[replypen-action] refused code=#{error.code} param_keys=#{keys} msg=#{error.message}")
       end
 
       def log_refusal_unexpected(error, raw_body)
@@ -346,7 +346,7 @@ module RootCause
         keys = safe_param_keys(raw_body)
         # Class name only: CONTRACT.md logging discipline forbids the message text of
         # an unexpected exception — it can carry request values.
-        @config.logger.error("[rootcause-action] refused code=internal_error class=#{error.class} param_keys=#{keys}")
+        @config.logger.error("[replypen-action] refused code=internal_error class=#{error.class} param_keys=#{keys}")
       end
 
       def param_keys(params)

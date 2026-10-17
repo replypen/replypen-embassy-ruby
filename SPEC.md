@@ -1,20 +1,21 @@
-# rootcause-embassy — rootcause's in-app presence in the customer's Ruby runtime
+# replypen-embassy — ReplyPen's in-app presence in the customer's Ruby runtime
 
-> **Renamed:** formerly `rootcause-action-runner` / `RootCause::ActionRunner` (≤ 0.2.0); now
-> `rootcause-embassy` / `RootCause::Embassy` (0.3.0+). Repo is `rootcause-embassy-ruby` — the
+> **Renamed:** `rootcause-action-runner` / `RootCause::ActionRunner` (≤ 0.2.0) → `rootcause-embassy` /
+> `RootCause::Embassy` (0.3.0–0.14.x) → `replypen-embassy` / `ReplyPen::Embassy` (0.15.0+, legacy names
+> still load). Repo is `replypen-embassy-ruby` — the
 > per-language Ruby Embassy.
 
-A **thin Ruby gem** the customer mounts once in their Rails app — the **Embassy**, rootcause's
-trusted in-app presence and the **first action runner** in rootcause's **action plane**. It receives
-a signed **invocation** from the rootcause host, **resolves the action's script by digest**, runs it
+A **thin Ruby gem** the customer mounts once in their Rails app — the **Embassy**, ReplyPen's
+trusted in-app presence and the **first action runner** in ReplyPen's **action plane**. It receives
+a signed **invocation** from the ReplyPen host, **resolves the action's script by digest**, runs it
 **inline with a hard timeout**, returns a **signed structured result**, and **receives async-analysis
 results**. No executable code ever travels in the invocation; the gem only runs a script whose
 `sha256` equals the approved `script_digest`.
 
 > **This repo is the gem only.** The host (registry, signer, confirm/execute pages, audit) lives in
-> [`rootcause`](https://github.com/rootcause-org/rootcause). The authoritative design for
+> [`replypen`](https://github.com/replypen/replypen). The authoritative design for
 > the whole plane is
-> [`rootcause-embassy/CONTRACT.md`](https://github.com/rootcause-org/rootcause-embassy/blob/main/CONTRACT.md)
+> [`replypen-embassy/CONTRACT.md`](https://github.com/replypen/replypen-embassy/blob/main/CONTRACT.md)
 > in that repo — **read it first**; this SPEC narrows it to the runner's responsibilities and the
 > wire contract the gem must honor.
 
@@ -34,22 +35,22 @@ into a structured result, running **as the host Rails app** with full app privil
   digest-pinned scripts only, signature + replay on the channel, params bound as **data** (never
   interpolated into source), and dual-sided audit. Real isolation is a later runtime swap.
 - **Not a registry / approver.** The gem never decides what is allowed; it verifies the signature and
-  the digest, fetches an approved body from rootcause on a cache miss, and runs it.
+  the digest, fetches an approved body from ReplyPen on a cache miss, and runs it.
 - **Not async.** Inline, synchronous, with a hard timeout. No job queue, no callbacks of its own.
-- **Not a sender.** It returns a result to rootcause; the human-reviewed email draft is rootcause's
+- **Not a sender.** It returns a result to ReplyPen; the human-reviewed email draft is ReplyPen's
   concern, never the gem's.
 
 ## 2. Where it sits in the plane
 
 ```mermaid
 flowchart LR
-    subgraph rc["rootcause host"]
+    subgraph rc["ReplyPen host"]
         signer[internal/action<br/>KMS HMAC · sign invocation · serve script-by-digest]
         egress[internal/egress<br/>allowlist + log]
     end
     subgraph cust["customer Rails app"]
         route[mounted route<br/>POST /rootcause/action]
-        runner["RootCause::Embassy<br/>verify sig + replay → validate params →<br/>resolve script by digest → run (timeout) → sign result"]
+        runner["ReplyPen::Embassy<br/>verify sig + replay → validate params →<br/>resolve script by digest → run (timeout) → sign result"]
         cache[(script cache<br/>digest → script.rb)]
     end
     signer -->|signed invocation<br/>action_id + params + digest · NO code| egress
@@ -59,7 +60,7 @@ flowchart LR
     runner -->|signed result / error+backtrace| signer
 ```
 
-The gem only ever talks to **one** rootcause origin (configured `fetch_url` host). It accepts
+The gem only ever talks to **one** ReplyPen origin (configured `fetch_url` host). It accepts
 invocations signed with the **per-project reverse-channel secret** (distinct from the email
 `webhook_secret`).
 
@@ -77,7 +78,7 @@ A single mounted handler does exactly this, fail-closed at every step:
    lowercase slug. Scope value may be absent/empty; no env-bound field may contain NUL. A strict
    deployment may exempt selected signed action ids through `tenantless_actions`; partial tuples
    always refuse.
-4. **Validate params** against the `schema` carried in the invocation (defense in depth — rootcause
+4. **Validate params** against the `schema` carried in the invocation (defense in depth — ReplyPen
    already validated at propose-time). Types: `string`, `integer`, `number`, `boolean`, `string[]`.
    Tenant and principal selector names are reserved and rejected in both params and schema.
 5. **Resolve the script by digest:**
@@ -98,22 +99,22 @@ A single mounted handler does exactly this, fail-closed at every step:
    values), `ok`/`err`, `duration_ms`. Never log the secret or param values.
 
 Every refusal keeps the closed snake_case wire `class` and adds `code`, `hint`, and `docs`.
-`RootCause::Embassy::Error#code` is stable SCREAMING_SNAKE; its docs URL points into the hub's public
+`ReplyPen::Embassy::Error#code` is stable SCREAMING_SNAKE; its docs URL points into the hub's public
 error catalogue.
 
 ## 4. Public API (what the customer writes)
 
 ```ruby
 # Gemfile
-gem "rootcause-embassy"
+gem "replypen-embassy"
 ```
 
 ```ruby
-# config/initializers/rootcause.rb
-RootCause::Embassy.configure do |c|
-  c.secret    = ENV.fetch("ROOTCAUSE_ACTION_SECRET")    # one reverse-channel HMAC secret
+# config/initializers/replypen.rb
+ReplyPen::Embassy.configure do |c|
+  c.secret    = ENV.fetch("REPLYPEN_ACTION_SECRET")    # one reverse-channel HMAC secret
   c.mount_at  = "/rootcause/action"                     # the single route
-  c.fetch_url = "https://<rootcause>/actions/script"    # script-by-digest endpoint
+  c.fetch_url = "https://<replypen>/actions/script"    # script-by-digest endpoint
   c.timeout   = 20                                       # hard per-EXECUTION timeout (seconds)
   c.total_deadline = 22                                  # whole-invocation budget: fetch + execute
   c.require_tenant_context = true                        # REQUIRED on tenant-enabled projects
@@ -132,10 +133,10 @@ calls take `project_id:` to select a map entry locally and do not duplicate it i
 
 Mounting (Rails): the gem exposes a Rack app / engine route at `mount_at`. The customer adds **one
 line** (or the gem auto-mounts via a Railtie — decide in §8). The recommendation, documented but not
-enforced in v1, is to **restrict the route to rootcause's egress IP** at the edge and run under a
+enforced in v1, is to **restrict the route to ReplyPen's egress IP** at the edge and run under a
 **least-privileged DB role** where feasible.
 
-Chat is independently configurable: `RootCause::Embassy.configure` with only `chat_secret` and
+Chat is independently configurable: `ReplyPen::Embassy.configure` with only `chat_secret` and
 `chat_project` boots without the action plane. `chat_base_url` defaults to
 `https://app.replypen.com`. Mounted action/result routes in that mode return an unsigned typed
 `ACTION_PLANE_DISABLED` refusal and execute nothing. The optional signed action health endpoint remains
@@ -153,7 +154,7 @@ whole-invocation/execution cutoff. Files and environment context are execution-s
 validation are authoritative in the hub's `planes/actions.md`; signed health advertises
 `attachments_inline`. Dry run validates without materializing.
 
-**Invocation** (rootcause → gem), `POST {mount_at}` — **no script body**:
+**Invocation** (ReplyPen → gem), `POST {mount_at}` — **no script body**:
 
 ```jsonc
 {
@@ -174,16 +175,16 @@ validation are authoritative in the hub's `planes/actions.md`; signed health adv
 }
 ```
 
-**Script fetch** (gem → rootcause, on cache miss), `GET {fetch_url}?action_id=…&digest=…` — signed:
+**Script fetch** (gem → ReplyPen, on cache miss), `GET {fetch_url}?action_id=…&digest=…` — signed:
 
 ```jsonc
 { "action_id": "…", "digest": "sha256:…", "script": "user = User.find_by(...)…", "runtime": "ruby" }
 ```
 
 The gem **verifies `sha256(script) == digest`** before caching or running. Unknown/unapproved digest
-→ rootcause returns 404 → the run **fails closed**.
+→ ReplyPen returns 404 → the run **fails closed**.
 
-**Result** (gem → rootcause) — signed:
+**Result** (gem → ReplyPen) — signed:
 
 ```jsonc
 { "ok": true, "return_value": { "found": true, "sent_to": "x@acme.com" },
@@ -200,7 +201,7 @@ execute backstop inside it. A breach returns the same signed `Timeout::Error` fa
 over-long body produces — never a bare transport timeout on the host side.
 
 **Replay semantics differ by direction.** This invocation route rejects a seen `nonce` (409). The
-**result** route ([async-analysis-spec](docs/async-analysis-spec.md)) does not: rootcause
+**result** route ([async-analysis-spec](docs/async-analysis-spec.md)) does not: ReplyPen
 sends a stable `nonce = run_id` across redeliveries so the Embassy dedupes, and a duplicate there is an
 idempotent signed `200 {"ok":true}` ack. A stale `issued_at` is a 409 on both.
 
@@ -219,16 +220,16 @@ retain the default `false`. An optional `action_run_id` must be a canonical lowe
 ### 5b. Embedded-chat token (gem → browser → host)
 
 A **fourth**, one-directional message on a **different key**: the customer's backend mints a
-short-lived HS256 JWT that lets a signed-in user talk to rootcause's embedded chat. It is signed with
+short-lived HS256 JWT that lets a signed-in user talk to ReplyPen's embedded chat. It is signed with
 the project's **`webhook_secret`** (`chat_secret`), **never** the reverse-channel `secret` — separate
-privilege boundaries, no fallback in either direction. The gem only **mints**; rootcause only
+privilege boundaries, no fallback in either direction. The gem only **mints**; ReplyPen only
 **verifies** (`internal/chat/jwt.go`). Header is `{"alg":"HS256","typ":"JWT"}`; anything else is
 rejected host-side.
 
 ```jsonc
 {
   "sub": "<external_id>",                          // opaque, stable user id
-  "aud": "rootcause:chat:<chat_project>",          // exact, host-required
+  "aud": "replypen:chat:<chat_project>",          // exact, host-required
   "iss": "<chat_project>",
   "jti": "uuid",                                   // single-use: burned when a session opens
   "origin": "https://app.example.com",             // scheme://host[:port], re-checked vs the Origin header
@@ -255,8 +256,8 @@ behavior; otherwise an already-open browser can pair the new tag with stale Java
 
 ### 5c. API plane (gem → host, bearer)
 
-A **fifth** message shape, and the only one that is not HMAC-signed: `RootCause::Embassy.api` calls
-rootcause's ordinary HTTP API (the surface the `rc` CLI drives) with `Authorization: Bearer …`. It is
+A **fifth** message shape, and the only one that is not HMAC-signed: `ReplyPen::Embassy.api` calls
+ReplyPen's ordinary HTTP API (the surface the `rc` CLI drives) with `Authorization: Bearer …`. It is
 **generic by design** — the gem ships transport + auth, never per-endpoint wrappers, so a new host
 endpoint needs no gem release. Endpoint inventory is the host's contract, not this spec's.
 
@@ -272,12 +273,12 @@ Calls return a frozen `Api::Response` (`ok?`, `status`, `body`, `field_errors`, 
 limit and host-side timeout are backpressure, not a contract break) are `retryable?`, every
 other 4xx is permanent. Only misconfiguration/bad arguments raise. Both config attributes are
 optional and validated together at boot. Credentials are **project-pinned**, so an app spanning
-several rootcause projects builds an independent caller per credential with
+several ReplyPen projects builds an independent caller per credential with
 `Embassy.api_for(api_base_url:, api_key:)`; caches never mix. See [docs/generic-api.md](docs/generic-api.md).
 
 ## 6. The action body it runs (read-only context)
 
-The gem **never authors** actions; it only runs them. For reference, an action in rootcause's
+The gem **never authors** actions; it only runs them. For reference, an action in ReplyPen's
 registry is one directory `brain/actions/<action_id>/` with `manifest.yaml` (id, description, typed
 param schema, risk hint) and `script.rb`. The script references `params[:x]` and returns a JSON-able
 value:
@@ -339,8 +340,8 @@ Open scaffolding decisions to settle when we start coding:
 ## 9. Layout (planned — gem skeleton)
 
 ```
-rootcause-embassy-ruby/
-├── rootcause-embassy.gemspec
+replypen-embassy-ruby/
+├── replypen-embassy.gemspec
 ├── Gemfile
 ├── Rakefile
 ├── mise.toml                      # Ruby version (mise-managed)
@@ -351,7 +352,8 @@ rootcause-embassy-ruby/
 ├── .agents/skills/                # real skills dir
 ├── SPEC.md                        # this file
 ├── lib/
-│   └── rootcause/
+│   ├── rootcause/embassy.rb       # legacy require shim
+│   └── replypen/
 │       └── embassy/
 │           ├── version.rb
 │           ├── config.rb          # the configure block
@@ -378,12 +380,12 @@ rootcause-embassy-ruby/
 | **Errors** | any raised exception → structured `error{class, message, backtrace}`; return value must be JSON-able (non-serializable → error). |
 | **Logging** | logs `action_id`/`digest`/param **keys**/`ok`/`duration_ms`; never the secret or param values. |
 
-Test with RSpec; stub the rootcause origin (signature + script-fetch) so the gem suite needs no live
+Test with RSpec; stub the ReplyPen origin (signature + script-fetch) so the gem suite needs no live
 host.
 
 ## 11. Out of scope (v1)
 
 Inherited from the action-plane spec §16: no non-Ruby runners (contract is ready), no large-output /
 download URLs, no dry-run, no idempotency keys beyond the nonce, no customer-side approval gate (that
-is rootcause's per-run human gate today; the **customer-held allowlist** is the launch blocker for the
+is ReplyPen's per-run human gate today; the **customer-held allowlist** is the launch blocker for the
 first non-self-owned customer), no stronger isolation than `Timeout.timeout` yet.

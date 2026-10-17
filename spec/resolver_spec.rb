@@ -1,8 +1,8 @@
 # frozen_string_literal: true
 
-ResolveError = RootCause::Embassy::ResolveError
+ResolveError = ReplyPen::Embassy::ResolveError
 
-RSpec.describe RootCause::Embassy::Resolver do
+RSpec.describe ReplyPen::Embassy::Resolver do
   let(:script) { "{ ok: true }" }
   let(:digest) { Wire.digest_of(script) }
   let(:config) { Wire.config }
@@ -13,7 +13,7 @@ RSpec.describe RootCause::Embassy::Resolver do
     resolver.resolve(action_id: "a", digest: digest, project_id: "p1")
     expected_sig = Wire.sign("action_id=a&digest=#{CGI.escape(digest)}&project_id=p1")
     expect(
-      a_request(:get, /rootcause\.test/).with(headers: {"X-Webhook-Signature" => expected_sig})
+      a_request(:get, /replypen\.test/).with(headers: {"X-Webhook-Signature" => expected_sig})
     ).to have_been_made
   end
 
@@ -39,7 +39,7 @@ RSpec.describe RootCause::Embassy::Resolver do
 
   it "hard-refuses when the response signature is invalid" do
     body = JSON.generate("digest" => digest, "script" => script)
-    WebMock.stub_request(:get, /rootcause\.test/).to_return(
+    WebMock.stub_request(:get, /replypen\.test/).to_return(
       status: 200, body: body,
       headers: {"X-Webhook-Signature" => "sha256=forged"}
     )

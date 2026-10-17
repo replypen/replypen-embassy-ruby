@@ -4,7 +4,7 @@ require "base64"
 require "digest"
 require "tempfile"
 
-module RootCause
+module ReplyPen
   module Embassy
     # Signed bytes stay separate from business params. Shape/cap failures refuse;
     # corrupt authorized bytes remain a per-file outcome so primary work can finish.
@@ -76,7 +76,7 @@ module RootCause
             if descriptor.key?("error")
               metadata.merge("error" => "unavailable")
             else
-              file = Tempfile.new("rootcause-action-attachment")
+              file = Tempfile.new("replypen-action-attachment")
               files << file
               file.binmode
               decode!(descriptor, file) ? metadata.merge("path" => file.path) : metadata.merge("error" => "corrupt")

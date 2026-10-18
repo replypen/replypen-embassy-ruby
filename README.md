@@ -86,6 +86,7 @@ ReplyPen::Embassy.configure do |c|
   c.chat_project = ENV.fetch("REPLYPEN_CHAT_PROJECT")
   c.secret    = ENV.fetch("REPLYPEN_ACTION_SECRET") # reverse-channel HMAC secret (per project)
   c.fetch_url = "https://<replypen>/actions/script" # script-by-digest endpoint
+  c.mount_at  = "/replypen/action"                   # new installs; the default stays "/rootcause/action"
   c.timeout   = 20                                   # hard per-EXECUTION timeout (seconds)
   c.total_deadline = 22                              # budget for the WHOLE invocation (fetch + execute)
   c.require_tenant_context = true                    # REQUIRED on tenant-enabled projects
@@ -116,7 +117,7 @@ end
 Map mode reads only unverified `project_id` to choose a candidate, then verifies the exact raw bytes.
 A missing, malformed, or unknown selector is an opaque unsigned `401 bad_signature`; a bad HMAC for
 a known action or result callback receives the usual refusal signed with that project's key. Result
-callbacks require `project_id` in map mode. The health probe is `GET /rootcause/action/health?project_id=<uuid>`,
+callbacks require `project_id` in map mode. The health probe is `GET <mount_at>/health?project_id=<uuid>`,
 signed over the raw query; invalid health probes stay opaque unsigned `404`, and single-secret
 deployments also accept the legacy empty query.
 
@@ -150,6 +151,17 @@ Explicit mount — least magic, easiest to restrict at the edge:
 ```ruby
 # config/routes.rb
 mount ReplyPen::Embassy::RackApp.new => ReplyPen::Embassy.config.mount_at
+```
+
+ReplyPen stores your mount as a full URL, so an app already mounted at the pre-rename
+`/rootcause/action` / `/rootcause/result` (the config defaults) keeps working. To move it, mount the
+new path beside the old one (both resolve the same configured runner, so replay protection is
+shared), deploy, have the operator repoint `action_runner_url` / `action_result_url`, and keep the
+old route:
+
+```ruby
+mount ReplyPen::Embassy::RackApp.new => "/replypen/action"
+mount ReplyPen::Embassy::RackApp.new => "/rootcause/action" # pre-rename URL
 ```
 
 **Recommended (documented, not enforced in v1):** restrict the route to ReplyPen's egress IP at the
@@ -205,7 +217,7 @@ follow-up sends only the new message — persist the `session_id` and pass it ba
 ```ruby
 # Add these lines inside the single configure block above.
 c.trigger_url     = "https://<replypen>/analyses/<project>" # where start_analysis POSTs
-c.result_mount_at = "/rootcause/result"                      # route that receives async results
+c.result_mount_at = "/replypen/result"                       # route that receives async results (default "/rootcause/result")
 c.result_handler  = "AnalysisResultHandler"                  # String → lazy-loaded, reload-safe
 c.max_attachment_bytes = 256 * 1024                          # per-attachment inline cap (decoded)
 c.max_total_attachment_bytes = 6 * 1024 * 1024               # aggregate cap per trigger (decoded)
@@ -461,14 +473,14 @@ to `add?(nonce, ttl:)`, e.g. a `Rails.cache`-backed adapter using `write(unless_
 
 ```ruby
 runner = ReplyPen::Embassy::Runner.new(ReplyPen::Embassy.config, nonce_store: MyCacheStore.new)
-mount ReplyPen::Embassy::RackApp.new(runner: runner) => "/rootcause/action"
+mount ReplyPen::Embassy::RackApp.new(runner: runner) => "/replypen/action"
 ```
 
 The **result route** has its own nonce store with the same caveat — inject a shared one the same way:
 
 ```ruby
 receiver = ReplyPen::Embassy::ResultReceiver.new(ReplyPen::Embassy.config, nonce_store: MyCacheStore.new)
-mount ReplyPen::Embassy::ResultRackApp.new(receiver: receiver) => "/rootcause/result"
+mount ReplyPen::Embassy::ResultRackApp.new(receiver: receiver) => "/replypen/result"
 ```
 
 Give a shared **result-route** store a `delete(nonce)` too: the receiver calls it to release a nonce

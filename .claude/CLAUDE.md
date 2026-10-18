@@ -97,7 +97,7 @@ ReplyPen was codenamed rootcause (hub decision 27). Kept on purpose — installe
 - `rootcause-embassy.gemspec` — Gemfiles pin `gem "rootcause-embassy", github: …`; same files, loads the replypen gemspec.
 - `lib/rootcause-embassy.rb`, `lib/rootcause/embassy.rb` — Bundler.require and explicit requires by the old name.
 - `RootCause = ReplyPen` (end of `lib/replypen/embassy.rb`) — initializers, routes, subclasses, rescues say `RootCause::Embassy`.
-- `/rootcause/action`, `/rootcause/result`, `cache_dir` `tmp/rootcause/actions` defaults — wire/host-stored URLs, customer routes.
+- `/rootcause/action`, `/rootcause/result`, `cache_dir` `tmp/rootcause/actions` defaults — installed apps' routes draw from them; docs show `/replypen/action|result` for new installs (hub decision 28).
 - `rootcause-action(<digest>)` eval filename — hub golden `result_action_error.json`.
 - `ROOTCAUSE_*` env names in deployed initializers — the gem reads no env (an env fallback in `configure` would arm half-configured planes and break boot on existing deploys), so this is the customer's naming; docs show `REPLYPEN_*`.
 - `data-rc-*` attributes, `RC_*` runtime env, `rcor_`/`rcoa_` token ids — wire contract.

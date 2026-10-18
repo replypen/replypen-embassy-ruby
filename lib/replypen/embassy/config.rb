@@ -17,7 +17,8 @@ module ReplyPen
       # Configure exactly one of `secret` or this UUID => secret map.
       attr_accessor :secrets
 
-      # The single mounted route, e.g. "/rootcause/action".
+      # The mounted invocation route; new installs use "/replypen/action". The default keeps the
+      # pre-rename path because installed apps draw their route from it.
       attr_accessor :mount_at
 
       # Script-by-digest endpoint on the ReplyPen host, hit on a cache miss.

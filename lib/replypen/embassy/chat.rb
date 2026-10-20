@@ -27,10 +27,10 @@ module ReplyPen
       # The host also allows 60s clock skew.
       DEFAULT_TTL = 7200
       MAX_TTL = 24 * 60 * 60
-      CREDENTIAL_KEY = /\A[A-Z][A-Z0-9_]{0,63}\z/
-      MAX_CREDENTIALS = 8
-      MAX_CREDENTIALS_BYTES = 8 * 1024
-      CREDENTIALS_HINT = "Mint credentials as at most 8 string values under UPPER_SNAKE keys (no RC_ prefix), 8 KiB total."
+      CREDENTIAL_KEY = Credentials::KEY
+      MAX_CREDENTIALS = Credentials::MAX_ENTRIES
+      MAX_CREDENTIALS_BYTES = Credentials::MAX_BYTES
+      CREDENTIALS_HINT = Credentials::HINT
       # One literal, owned by Config (REPLYPEN_CHAT_BASE_URL's default); kept reachable here
       # because the widget tag reads it directly.
       DEFAULT_BASE_URL = Config::DEFAULT_CHAT_BASE_URL
@@ -117,22 +117,8 @@ module ReplyPen
         encode(claims, secret)
       end
 
-      # Hub decision 20: env name → string the host seals on the session and injects into every run, so
-      # the agent can call the customer's own API as exactly this user. Same rules as the host checks.
-      # Keys sorted: the golden vector (and any map-marshaling port) signs them in that order.
-      def credentials_claim(credentials)
-        return nil if credentials.nil? || (credentials.respond_to?(:empty?) && credentials.empty?)
-
-        unless credentials.is_a?(Hash) && credentials.size <= MAX_CREDENTIALS
-          raise Error.public("CREDENTIALS_INVALID", CREDENTIALS_HINT)
-        end
-
-        claim = credentials.to_h { |key, value| [key.to_s, value] }.sort.to_h
-        valid = claim.all? { |key, value| key.match?(CREDENTIAL_KEY) && !key.start_with?("RC_") && value.is_a?(String) }
-        raise Error.public("CREDENTIALS_INVALID", CREDENTIALS_HINT) unless valid && JSON.generate(claim).bytesize <= MAX_CREDENTIALS_BYTES
-
-        claim
-      end
+      # Hub decision 20: the host seals the claim on the session and injects it into every run.
+      def credentials_claim(credentials) = Credentials.claim!(credentials)
 
       # The host's required `aud` for a project's embed token.
       def audience(project) = "replypen:chat:#{project}"

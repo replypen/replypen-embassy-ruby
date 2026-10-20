@@ -48,7 +48,7 @@ RSpec.describe ReplyPen::Embassy::Chat do
 
     it "refuses credentials the host would refuse" do
       [{"RC_TOKEN" => "x"}, {"lower" => "x"}, {"ACME" => 1}, (1..9).to_h { |i| ["K#{i}", "v"] },
-        {"BIG" => "x" * 9000}, "ACME=x"].each do |credentials|
+        {"BIG" => "x" * 9000}, {"ACME" => "a\0b"}, "ACME=x"].each do |credentials|
         expect { mint(credentials: credentials) }
           .to raise_error(ReplyPen::Embassy::Error) { |error| expect(error.code).to eq("CREDENTIALS_INVALID") }
       end

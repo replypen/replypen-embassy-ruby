@@ -287,6 +287,17 @@ fields are optional. Assert it from your **own authenticated session** only — 
 a URL parameter, or anything the end user can set. Omit the kwarg entirely when there is no
 authenticated user. It stays dormant unless the project declares `scope_claims` host-side.
 
+**Act as that user on your API** — `credentials:` hands the run env vars, the same map as the chat
+token's (UPPER_SNAKE keys, no `RC_`, ≤ 8 entries, ≤ 8 KiB, string values). Mint a token scoped to
+exactly that `principal` (required with it) with a short TTL covering the run plus retries (≤ 1 h).
+It holds for **this run only**: pass fresh ones on every follow-up trigger. A violation raises
+`CREDENTIALS_INVALID` before sending; an older host answers `400` (unknown field).
+
+```ruby
+credentials: {"ACME_AGENT_TOKEN" => ticket.creator.mint_read_token(ttl: 1.hour),
+              "ACME_API_BASE" => "https://api.acme.example"}
+```
+
 **Handle the result** — a plain class in `app/`, idempotent (ReplyPen **redelivers** on a lost ack):
 
 ```ruby

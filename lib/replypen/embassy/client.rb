@@ -46,14 +46,19 @@ module ReplyPen
       #   whose id is the `RC_ACTION_RUN_ID` an action stored with the record it
       #   created — never a param or user text. Lets the analysis read the chat that
       #   led to that action, when its approved manifest delegates it.
+      # @param credentials [Hash{String=>String}, nil] env name → user-scoped token for your own API,
+      #   minted server-side for exactly `principal` (required with it) with a TTL covering the run
+      #   plus retries (≤ 1 h). Held for this run only: pass fresh ones on every follow-up. Same rules
+      #   as the chat claim; nil/empty omits the key. Values are never logged.
       # @return [Analysis]
       # @raise [TriggerError] non-2xx, malformed response, or transport failure
       # @raise [Error] chat-only/half-wired setup: ANALYSIS_TRIGGER_URL_REQUIRED or
-      #   ACTION_PLANE_DISABLED; malformed context_refs: ANALYSIS_REQUEST_INVALID
+      #   ACTION_PLANE_DISABLED; malformed context_refs: ANALYSIS_REQUEST_INVALID; credentials
+      #   breaking a rule or sent without a principal: CREDENTIALS_INVALID
       #   (all carry code/hint/docs; Error < ArgumentError)
       # @raise [ArgumentError] an over-cap (single or aggregate)/malformed attachment, or a principal
       #   without both kind and external_id
-      def start_analysis(subject:, body:, attachments: [], metadata: {}, session_id: nil, tenant: nil, principal: nil, project_id: nil, context_refs: nil)
+      def start_analysis(subject:, body:, attachments: [], metadata: {}, session_id: nil, tenant: nil, principal: nil, project_id: nil, context_refs: nil, credentials: nil)
         url = @config.trigger_url
         if Util.blank?(url)
           raise Error.public("ANALYSIS_TRIGGER_URL_REQUIRED", "Set REPLYPEN_TRIGGER_URL before starting an analysis.")
@@ -61,6 +66,10 @@ module ReplyPen
 
         metadata ||= {}
         context_refs = normalize_context_refs(context_refs)
+        # Hub decision 29: sealed for this run only (each follow-up passes fresh ones), and minted for
+        # exactly the asserted principal, so a principal-less (tenant-level) analysis carries none.
+        credentials = Credentials.claim!(credentials)
+        raise Credentials.invalid if credentials && principal.nil?
         # Key order is not contract, but this one reproduces every trigger golden
         # byte-for-byte. Only carry session_id on a follow-up; the first turn omits
         # it and the host mints one, returned in the 202 below.
@@ -73,6 +82,7 @@ module ReplyPen
         payload["session_id"] = session_id unless Util.blank?(session_id)
         payload["context_refs"] = context_refs unless context_refs.empty?
         payload["principal"] = normalize_principal(principal) unless principal.nil?
+        payload["credentials"] = credentials if credentials
         payload["nonce"] = SecureRandom.uuid
         payload["issued_at"] = Time.now.utc.iso8601
         payload["tenant"] = tenant unless Util.blank?(tenant)

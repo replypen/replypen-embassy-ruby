@@ -296,6 +296,27 @@ RSpec.describe "hub contract conformance" do
         expect_signed_over_transmitted_bytes
       end
 
+      it "emits the credentials trigger byte-for-byte" do
+        allow(SecureRandom).to receive(:uuid).and_return("contract-nonce-trigger-credentials")
+        Wire.stub_trigger
+        golden = JSON.parse(fixture("analysis/trigger_with_credentials.json"))
+
+        client.start_analysis(
+          subject: golden.fetch("subject"),
+          body: golden.fetch("body"),
+          attachments: golden.fetch("attachments"),
+          metadata: golden.fetch("metadata"),
+          session_id: golden.fetch("session_id"),
+          tenant: golden.fetch("tenant"),
+          principal: golden.fetch("principal"),
+          # Reversed on purpose: the client sorts keys, as the golden does.
+          credentials: golden.fetch("credentials").to_a.reverse.to_h
+        )
+
+        expect(transmitted_body).to eq(utf8_fixture("analysis/trigger_with_credentials.json"))
+        expect_signed_over_transmitted_bytes
+      end
+
       it "emits the sent-message capture byte-for-byte" do
         allow(SecureRandom).to receive(:uuid).and_return("contract-nonce-sent-message")
         Wire.stub_sent_message

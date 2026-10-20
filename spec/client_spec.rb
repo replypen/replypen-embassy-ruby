@@ -301,6 +301,52 @@ RSpec.describe ReplyPen::Embassy::Client do
     end
   end
 
+  describe "credentials" do
+    let(:principal) { {kind: "acme_user", external_id: "user-8f3"} }
+
+    it "carries the map after principal, keys sorted" do
+      Wire.stub_trigger
+      client.start_analysis(subject: "s", body: "b", principal: principal, credentials: {ACME_B: "2", ACME_A: "1"})
+
+      expect(
+        a_request(:post, Wire::TRIGGER_URL).with { |req|
+          body = JSON.parse(req.body)
+          body["credentials"].to_a == [%w[ACME_A 1], %w[ACME_B 2]] &&
+            body.keys.index("credentials") == body.keys.index("principal") + 1
+        }
+      ).to have_been_made
+    end
+
+    it "omits the key when nil or empty" do
+      Wire.stub_trigger
+      client.start_analysis(subject: "s", body: "b")
+      client.start_analysis(subject: "s", body: "b", credentials: {})
+
+      expect(a_request(:post, Wire::TRIGGER_URL).with { |req| !JSON.parse(req.body).key?("credentials") }).to have_been_made.twice
+    end
+
+    it "refuses chat-claim rule violations and a missing principal with CREDENTIALS_INVALID before sending" do
+      stub = Wire.stub_trigger
+      [
+        [principal, {"RC_TOKEN" => "x"}],
+        [principal, {"lower" => "x"}],
+        [principal, {"ACME" => 1}],
+        [principal, {"ACME" => "a\0b"}],
+        [principal, (1..9).to_h { |i| ["K#{i}", "v"] }],
+        [principal, {"BIG" => "x" * 9000}],
+        [nil, {"ACME_TOKEN" => "t"}]
+      ].each do |who, credentials|
+        expect {
+          client.start_analysis(subject: "s", body: "b", principal: who, credentials: credentials)
+        }.to raise_error(ReplyPen::Embassy::Error) { |error|
+          expect(error.code).to eq("CREDENTIALS_INVALID")
+          expect(error.message).not_to include("a\0b")
+        }
+      end
+      expect(stub).not_to have_been_requested
+    end
+  end
+
   it "refuses with an additive typed code when trigger_url is unconfigured (chat-only boot)" do
     config.trigger_url = nil
     expect {

@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.17.0
+
+- **`Client#start_analysis(credentials:)`** sends the optional per-run `credentials` map (hub decision 29):
+  the chat claim's rules, shared via `ReplyPen::Embassy::Credentials.claim!`, plus "requires a `principal`";
+  else `CREDENTIALS_INVALID` before sending. Omitted when nil/empty. Emits `trigger_with_credentials.json`
+  byte-for-byte. Needs a host that knows the field (an older host answers `400`).
+- Credential values containing NUL are refused (chat token too), matching the host.
+- Contract fixtures re-vendored from hub `9aa0bfcf9832e2f7637c9fd0f0800b6f4477023f`.
+
 ## 0.16.0
 
 - **`Chat.token(credentials:)`** mints the optional per-session `credentials` claim (hub decision 20):

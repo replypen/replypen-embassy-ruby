@@ -502,6 +502,24 @@ Likewise, `capture_stdout` swaps the **process-global** `$stdout` for the durati
 multi-threaded server that briefly intercepts other threads' output. Set `capture_stdout = false` if
 that matters in your deployment.
 
+## Deploy checklist (lessons from pilot installs)
+
+- **Mount outside every auth wall.** The route authenticates itself (signature + replay); a Devise /
+  session `before_action` or an edge login page in front of it refuses every invocation. It must stay
+  publicly reachable from ReplyPen production.
+- **Python bodies never run here.** Dispatch is per project, not per action: with `action_mode=embassy`
+  every confirmed action comes to this gem, which refuses other runtimes (`unsupported runtime:
+  python`). Write bodies are `runtime: ruby`; Python stays for host-side preflights/policies.
+- **Prove the shared nonce store in production.** Test environments usually boot without the
+  production secret and store wiring, so request specs exercise the default in-memory store (or a
+  disabled plane) and prove nothing about your Redis/cache adapter. After one real invocation, check
+  that its nonce key exists in the shared store.
+- **Rotation is two-sided.** `rp project action-settings reverse-secret rotate` prints the new value
+  once; it must reach the app's secret store and be deployed in the same window, or every invocation
+  fails `bad_signature`.
+- **Retry safety is yours.** The nonce bounds replay; it never makes a write idempotent. Key bodies on
+  a `request_id` audit row so a retry after an uncertain outcome returns the original result.
+
 ## Development
 
 ```bash
